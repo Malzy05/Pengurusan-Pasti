@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pengurusan PASTI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/fontsource-inter@5.0.0/index.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .sidebar-item:hover, .sidebar-item.active { background: rgba(255,255,255,0.1); }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .card-hover { transition: all 0.2s; }
+        .modal-overlay { background: rgba(0,0,0,0.5); }
+        input, select, textarea { transition: border-color 0.2s; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; }
+            .print-card { box-shadow: none !important; border: 1px solid #ddd !important; page-break-inside: avoid; }
+            .print-table { width: 100%; border-collapse: collapse; }
+            .print-table th, .print-table td { border: 1px solid #ddd; padding: 8px; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+<div id="root"></div>
+<script type="text/babel">
+const { createClient } = supabase;
+const supabaseUrl = 'https://ylpedyqrgovjsfqkhuym.supabase.co';
+const supabaseKey = 'sb_publishable_N0Sfs2TvPUS2R50t7ayROg_UaV1ChN6';
+const _supabase = createClient(supabaseUrl, supabaseKey)
+const { useState, useEffect, useMemo, useCallback, createContext, useContext } = React;
+
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+const getData = (key) => JSON.parse(localStorage.getItem(`pasti_${key}`) || '[]');
+const setData = (key, data) => localStorage.setItem(`pasti_${key}`, JSON.stringify(data));
+const getGradeForMark = (mark) => {
+    const grades = getData('grades');
+    for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
+    return 'D';
+};
+const getStaffById = (id) => getData('users').find(u => u.id === id);
+const getStudentById = (id) => getData('students').find(s => s.id === id);
+
+const initializeData = () => {
+    if (!localStorage.getItem('pasti_initialized_v4')) {
+        const users = [
+            { id: 'admin1', nama: 'Ahmad bin Ali', role: 'admin', ic: '800101011234', noHp: '012-3456789', alamat: 'Kuala Lumpur', tarikhLahir: '1980-01-01', tarikhMula: '2015-01-01', password: 'admin123' },
+            { id: 'staff1', nama: 'Siti Aminah binti Hassan', role: 'staff', ic: '900202021234', noHp: '013-4567890', alamat: 'Selangor', tarikhLahir: '1990-02-02', tarikhMula: '2018-03-15', kelas: 'Ceria 4 Tahun', password: 'staff123' },
+            { id: 'staff2', nama: 'Nurul Huda binti Ismail', role: 'staff', kelas: 'Ceria 5 Tahun', ic: '910303031234', noHp: '014-5678901', alamat: 'Selangor', tarikhLahir: '1991-03-03', tarikhMula: '2019-06-01', password: 'staff123' },
+            { id: 'staff3', nama: 'Fatimah binti Yusof', role: 'staff', kelas: 'Ceria 6 Tahun', ic: '850404041234', noHp: '015-6789012', alamat: 'Kuala Lumpur', tarikhLahir: '1985-04-04', tarikhMula: '2017-09-01', password: 'staff123' },
+        ];
+        const currentYear = new Date().getFullYear();
+        const students = [
+            { id: 'stu1', nama: 'Muhammad Aiman bin Razak', tarikhLahir: '2018-05-10', tahun: 6, kelas: 'Ceria 6 Tahun', guruId: 'staff3', alamat: 'No 12, Jalan Mawar, KL', namaIbu: 'Zainab binti Omar', namaBapa: 'Razak bin Abdullah', tahunSesi: currentYear },
+            { id: 'stu2', nama: 'Aisyah binti Khalid', tarikhLahir: '2019-08-22', tahun: 5, kelas: 'Ceria 5 Tahun', guruId: 'staff2', alamat: 'No 5, Jalan Melati, SG', namaIbu: 'Noraini binti Ahmad', namaBapa: 'Khalid bin Hassan', tahunSesi: currentYear },
+            { id: 'stu3', nama: 'Adam bin Farid', tarikhLahir: '2020-01-15', tahun: 4, kelas: 'Ceria 4 Tahun', guruId: 'staff1', alamat: 'No 8, Jalan Kenanga, SG', namaIbu: 'Salmah binti Yusof', namaBapa: 'Farid bin Ali', tahunSesi: currentYear },
+            { id: 'stu4', nama: 'Hana binti Zaki', tarikhLahir: '2018-11-30', tahun: 6, kelas: 'Ceria 6 Tahun', guruId: 'staff3', alamat: 'No 22, Jalan Dahlia, KL', namaIbu: 'Rashida binti Mohd', namaBapa: 'Zaki bin Osman', tahunSesi: currentYear },
+            { id: 'stu5', nama: 'Danial bin Hakim', tarikhLahir: '2019-04-18', tahun: 5, kelas: 'Ceria 5 Tahun', guruId: 'staff2', alamat: 'No 15, Jalan Teratai, SG', namaIbu: 'Azizah binti Tan', namaBapa: 'Hakim bin Sulaiman', tahunSesi: currentYear },
+            { id: 'stu6', nama: 'Sofia binti Amran', tarikhLahir: '2020-07-25', tahun: 4, kelas: 'Ceria 4 Tahun', guruId: 'staff1', alamat: 'No 3, Jalan Anggerik, SG', namaIbu: 'Mariam binti Salleh', namaBapa: 'Amran bin Ibrahim', tahunSesi: currentYear },
+        ];
+        setData('users', users);
+        setData('students', students);
+        setData('staffAttendance', [
+            { id: 'sa1', staffId: 'staff1', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'sa2', staffId: 'staff2', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'sa3', staffId: 'staff3', tarikh: '2024-01-15', status: 'Cuti' },
+        ]);
+        setData('grades', [
+            { id: 'g1', gred: 'A', min: 80, max: 100 },
+            { id: 'g2', gred: 'B', min: 65, max: 79 },
+            { id: 'g3', gred: 'C', min: 50, max: 64 },
+            { id: 'g4', gred: 'D', min: 0, max: 49 },
+        ]);
+        setData('studentAttendance', [
+            { id: 'att1', studentId: 'stu1', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att2', studentId: 'stu2', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att3', studentId: 'stu3', tarikh: '2024-01-15', status: 'Tidak Hadir' },
+            { id: 'att4', studentId: 'stu4', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att5', studentId: 'stu5', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att6', studentId: 'stu6', tarikh: '2024-01-15', status: 'Tidak Hadir' },
+        ]);
+        setData('logbooks', [
+            { id: 'lb1', staffId: 'staff1', tarikh: '2024-01-15', tahun: 2024, aktiviti: 'Aktiviti mewarna dan bercerita', catatan: 'Semua murid aktif', gambar: '' },
+            { id: 'lb2', staffId: 'staff2', tarikh: '2024-01-15', tahun: 2024, aktiviti: 'Belajar nombor 1-10', catatan: 'Murid faham dengan baik', gambar: '' },
+        ]);
+        setData('studentMarks', [
+            { id: 'mk1', studentId: 'stu1', subjek: 'Jawi', markah: 85, tahunSesi: currentYear },
+            { id: 'mk2', studentId: 'stu1', subjek: 'Al-Quran', markah: 90, tahunSesi: currentYear },
+            { id: 'mk3', studentId: 'stu2', subjek: 'Jawi', markah: 72, tahunSesi: currentYear },
+            { id: 'mk4', studentId: 'stu2', subjek: 'Bahasa Arab', markah: 68, tahunSesi: currentYear },
+        ]);
+        setData('calendarEvents', []);
+        localStorage.setItem('pasti_initialized_v4', 'true');
+    }
+};
+
+const AuthContext = createContext(null);
+const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(() => {
+        const saved = localStorage.getItem('pasti_currentUser');
+        return saved ? JSON.parse(saved) : null;
+    });
+    const login = (ic, password) => {
+        const users = getData('users');
+        const found = users.find(u => u.ic === ic && u.password === password);
+        if (found) { setUser(found); localStorage.setItem('pasti_currentUser', JSON.stringify(found)); return { success: true, user: found }; }
+        return { success: false, message: 'IC atau kata laluan salah' };
+    };
+    const logout = () => { setUser(null); localStorage.removeItem('pasti_currentUser'); };
+    const updateUser = (updatedUser) => {
+        const users = getData('users');
+        const idx = users.findIndex(u => u.id === updatedUser.id);
+        if (idx !== -1) {
+            const oldIc = users[idx].ic;
+            users[idx] = updatedUser;
+            setData('users', users);
+            setUser(updatedUser);
+            localStorage.setItem('pasti_currentUser', JSON.stringify(updatedUser));
+        }
+    };
+    return <AuthContext.Provider value={{ user, login, logout, updateUser }}>{children}</AuthContext.Provider>;
+};
+
+const Login = () => {
+    const [ic, setIc] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const { login } = useContext(AuthContext);
+    const handleLogin = (e) => { e.preventDefault(); const result = login(ic, password); if (!result.success) setError(result.message); };
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+                <div className="text-center mb-8">
+                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-800">Sistem Pengurusan PASTI</h1>
+                    <p className="text-gray-500 mt-1">Masukkan kelayakan anda untuk log masuk</p>
+                </div>
+                {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">No IC</label><input type="text" value={ic} onChange={e => setIc(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Masukkan No IC" required /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Kata Laluan</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Masukkan kata laluan" required /></div>
+                    <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors">Log Masuk</button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const Sidebar = ({ currentPage, setCurrentPage, user }) => {
+    const { logout } = useContext(AuthContext);
+    const isAdmin = user.role === 'admin';
+    const menuItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', roles: ['admin', 'staff'] },
+        { id: 'profile', label: 'Profil Saya', icon: 'user', roles: ['admin', 'staff'] },
+        { id: 'staff', label: 'Pengurusan Staff', icon: 'users', roles: ['admin'] },
+        { id: 'staffAttendance', label: 'Kehadiran Staff', icon: 'user-check', roles: ['admin'] },
+        { id: 'gradeManagement', label: 'Pengurusan Gred', icon: 'settings', roles: ['admin'] },
+        { id: 'logbookMonitor', label: 'Logbook Guru', icon: 'book-open', roles: ['admin'] },
+        { id: 'calendar', label: 'Kalendar', icon: 'calendar', roles: ['admin', 'staff'] },
+        { id: 'students', label: 'Pengurusan Murid', icon: 'graduation-cap', roles: ['admin', 'staff'] },
+        { id: 'studentInfo', label: 'Maklumat Murid', icon: 'id-card', roles: ['admin', 'staff'] },
+        { id: 'studentAttendance', label: 'Kehadiran Murid', icon: 'clipboard-check', roles: ['staff'] },
+        { id: 'logbook', label: 'Logbook Harian', icon: 'file-text', roles: ['staff'] },
+        { id: 'performance', label: 'Prestasi Murid', icon: 'bar-chart-3', roles: ['admin', 'staff'] },
+        { id: 'performanceSummary', label: 'Ringkasan Prestasi', icon: 'file-bar-chart', roles: ['admin', 'staff'] },
+        { id: 'performanceByYear', label: 'Prestasi Mengikut Tahun', icon: 'layers', roles: ['admin', 'staff'] },
+    ];
+    const iconMap = {
+        'layout-dashboard': 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+        'user': 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z',
+        'users': 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+        'user-check': 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM16 11l2 2 4-4',
+        'settings': 'M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2zM12 9a3 3 0 100 6 3 3 0 000-6z',
+        'book-open': 'M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z',
+        'calendar': 'M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18',
+        'graduation-cap': 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5',
+        'id-card': 'M10 13a5 5 0 017.54.54l3 3a5 5 0 01-7.07 7.07l-1.72-1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71M10 3h8v8h-8z',
+        'clipboard-check': 'M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2M12 2h8v4h-8zM9 14l2 2 4-4',
+        'file-text': 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
+        'bar-chart-3': 'M12 20V10M18 20V4M6 20v-4',
+        'file-bar-chart': 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M8 18v-4M16 18v-8',
+        'layers': 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+        'log-out': 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9',
+    };
+    const filtered = menuItems.filter(m => m.roles.includes(user.role));
+    return (
+        <div className="w-64 bg-gradient-to-b from-emerald-800 to-emerald-900 min-h-screen text-white no-print flex flex-col">
+            <div className="p-6 border-b border-emerald-700">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <div><h1 className="font-bold text-lg">PASTI</h1><p className="text-xs text-emerald-300">{isAdmin ? 'Admin' : 'Guru'}</p></div>
+                </div>
+            </div>
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                {filtered.map(item => (
+                    <button key={item.id} onClick={() => setCurrentPage(item.id)}
+                        className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${currentPage === item.id ? 'active bg-emerald-700 font-medium' : 'text-emerald-100 hover:text-white'}`}>
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconMap[item.icon]} /></svg>
+                        {item.label}
+                    </button>
+                ))}
+            </nav>
+            <div className="p-4 border-t border-emerald-700">
+                <div className="px-4 py-2 mb-2"><p className="text-sm font-medium truncate">{user.nama}</p><p className="text-xs text-emerald-300">{user.ic}</p></div>
+                <button onClick={logout} className="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-emerald-100 hover:text-white transition-all">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                    Log Keluar
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const Field = ({ label, type = 'text', value, onChange }) => (
+    <div><label className="block text-sm font-medium text-gray-700 mb-1">{label}</label><input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+);
+const Modal = ({ title, children, onClose }) => (
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b"><h3 className="text-lg font-bold text-gray-800">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+            <div className="p-6">{children}</div>
+        </div>
+    </div>
+);
+
+// ==================== PROFILE PAGE (IC NOW EDITABLE) ====================
+const ProfilePage = ({ user }) => {
+    const { updateUser } = useContext(AuthContext);
+    const isAdmin = user.role === 'admin';
+    const [form, setForm] = useState({
+        nama: user.nama || '',
+        ic: user.ic || '',
+        noHp: user.noHp || '',
+        alamat: user.alamat || '',
+        tarikhLahir: user.tarikhLahir || '',
+        tarikhMula: user.tarikhMula || '',
+        kelas: user.kelas || '',
+        password: '',
+        passwordBaru: '',
+        passwordSahkan: ''
+    });
+    const [success, setSuccess] = useState('');
+    const [error, setError] = useState('');
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [pendingChanges, setPendingChanges] = useState(null);
+
+    useEffect(() => {
+        setForm({
+            nama: user.nama || '',
+            ic: user.ic || '',
+            noHp: user.noHp || '',
+            alamat: user.alamat || '',
+            tarikhLahir: user.tarikhLahir || '',
+            tarikhMula: user.tarikhMula || '',
+            kelas: user.kelas || '',
+            password: '',
+            passwordBaru: '',
+            passwordSahkan: ''
+        });
+    }, [user.id, user.ic]);
+
+    const handleSave = () => {
+        if (!form.nama) return setError('Nama tidak boleh kosong');
+        if (!form.ic) return setError('No IC tidak boleh kosong');
+        if (form.passwordBaru && form.passwordBaru !== form.passwordSahkan) return setError('Kata laluan baru tidak sepadan');
+        if (form.passwordBaru && form.password !== user.password) return setError('Kata laluan semasa tidak betul');
+
+        const changes = { ...user, nama: form.nama, ic: form.ic, noHp: form.noHp, alamat: form.alamat, tarikhLahir: form.tarikhLahir, tarikhMula: form.tarikhMula };
+        if (!isAdmin) changes.kelas = form.kelas;
+        if (form.passwordBaru) changes.password = form.passwordBaru;
+
+        if (form.ic !== user.ic) {
+            const users = getData('users');
+            const duplicate = users.find(u => u.ic === form.ic && u.id !== user.id);
+            if (duplicate) return setError('No IC ini telah digunakan oleh pengguna lain');
+            setPendingChanges(changes);
+            setShowConfirm(true);
+        } else {
+            updateUser(changes);
+            setSuccess('Profil berjaya dikemas kini!');
+            setError('');
+            setForm({...form, password: '', passwordBaru: '', passwordSahkan: ''});
+            setTimeout(() => setSuccess(''), 3000);
+        }
+    };
+
+    const confirmUpdate = () => {
+        if (pendingChanges) {
+            updateUser(pendingChanges);
+            setSuccess('Profil berjaya dikemas kini! No IC baru akan digunakan untuk log masuk seterusnya.');
+            setError('');
+            setForm({...form, password: '', passwordBaru: '', passwordSahkan: ''});
+            setShowConfirm(false);
+            setPendingChanges(null);
+            setTimeout(() => setSuccess(''), 5000);
+        }
+    };
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Profil Saya</h2>
+            {success && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg mb-4 text-sm fade-in">✓ {success}</div>}
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl">
+                <div className="flex items-center gap-4 mb-6 pb-6 border-b">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-800">{user.nama}</h3>
+                        <p className="text-sm text-gray-500">{isAdmin ? 'Administrator' : 'Guru'} • {user.ic}</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} />
+                    <Field label="No IC" value={form.ic} onChange={v => setForm({...form, ic: v})} />
+                    <Field label="No Telefon" value={form.noHp} onChange={v => setForm({...form, noHp: v})} />
+                    <Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} />
+                    <Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} />
+                    <Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} />
+                    {!isAdmin && <Field label="Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} />}
+                </div>
+                <div className="mt-6 pt-6 border-t">
+                    <h4 className="font-semibold text-gray-800 mb-4">Tukar Kata Laluan</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Field label="Kata Laluan Semasa" type="password" value={form.password} onChange={v => setForm({...form, password: v})} />
+                        <Field label="Kata Laluan Baru" type="password" value={form.passwordBaru} onChange={v => setForm({...form, passwordBaru: v})} />
+                        <div className="md:col-span-2"><Field label="Sahkan Kata Laluan Baru" type="password" value={form.passwordSahkan} onChange={v => setForm({...form, passwordSahkan: v})} /></div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">* Kosongkan jika tidak mahu tukar kata laluan</p>
+                </div>
+                <button onClick={handleSave} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors">Simpan Perubahan</button>
+            </div>
+            {showConfirm && (
+                <Modal title="Pengesahan Perubahan No IC" onClose={() => { setShowConfirm(false); setPendingChanges(null); }}>
+                    <div className="space-y-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <p className="text-amber-800 text-sm font-medium">⚠️ Amaran:</p>
+                            <p className="text-amber-700 text-sm mt-1">Anda akan menukar No IC. No IC baru akan digunakan untuk log masuk pada masa hadapan.</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                            <div className="flex justify-between text-sm"><span className="text-gray-500">No IC Lama:</span><span className="font-medium">{user.ic}</span></div>
+                            <div className="flex justify-between text-sm"><span className="text-gray-500">No IC Baru:</span><span className="font-medium text-emerald-600">{form.ic}</span></div>
+                        </div>
+                        <p className="text-sm text-gray-600">Adakah anda pasti ingin meneruskan?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => { setShowConfirm(false); setPendingChanges(null); }} className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
+                            <button onClick={confirmUpdate} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Ya, Teruskan</button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+// ==================== ADMIN DASHBOARD ====================
+const AdminDashboard = () => {
+    const users = getData('users').filter(u => u.role === 'staff');
+    const students = getData('students');
+    const staffAtt = getData('staffAttendance');
+    const years = [4, 5, 6];
+    const today = new Date().toISOString().split('T')[0];
+    const todayAtt = staffAtt.filter(a => a.tarikh === today && a.status === 'Hadir');
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard Admin</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {[
+                    { label: 'Jumlah Staff', count: users.length, color: 'blue', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+                    { label: 'Jumlah Murid', count: students.length, color: 'emerald', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+                    { label: 'Kehadiran Staff Hari Ini', count: `${todayAtt.length}/${users.length}`, color: 'amber', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+                    { label: 'Jumlah Logbook', count: getData('logbooks').length, color: 'purple', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+                ].map((item, idx) => (
+                    <div key={idx} className="bg-white rounded-xl p-6 shadow-sm card-hover border border-gray-100">
+                        <div className="flex items-center justify-between mb-4"><div className={`w-12 h-12 bg-${item.color}-100 rounded-lg flex items-center justify-center`}><svg className={`w-6 h-6 text-${item.color}-600`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg></div><span className={`text-3xl font-bold text-${item.color}-600`}>{item.count}</span></div>
+                        <p className="text-gray-500 text-sm">{item.label}</p>
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Murid Mengikut Tahun</h3>
+                    <div className="space-y-4">
+                        {years.map(tahun => { const count = students.filter(s => s.tahun === tahun).length; const pct = students.length > 0 ? (count / students.length) * 100 : 0; return <div key={tahun}><div className="flex justify-between text-sm mb-1"><span className="text-gray-600">{tahun} Tahun</span><span className="font-medium">{count} murid</span></div><div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-emerald-500 h-2.5 rounded-full transition-all" style={{ width: `${pct}%` }}></div></div></div>; })}
+                    </div>
+                </div>
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Kelas & Guru</h3>
+                    <div className="space-y-3">
+                        {users.map(staff => { const stuCount = students.filter(s => s.kelas === staff.kelas).length; return <div key={staff.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"><div><p className="font-medium text-sm">{staff.kelas}</p><p className="text-xs text-gray-500">{staff.nama}</p></div><span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{stuCount} murid</span></div>; })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const StaffDashboard = ({ user }) => {
+    const students = getData('students').filter(s => s.kelas === user.kelas);
+    const allAtt = getData('studentAttendance').filter(a => students.some(s => s.id === a.studentId));
+    const hadirCount = allAtt.filter(a => a.status === 'Hadir').length;
+    const myLogs = getData('logbooks').filter(l => l.staffId === user.id);
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard Guru</h2>
+            <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg"><p className="text-emerald-800 font-medium">Kelas: {user.kelas}</p></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {[
+                    { label: 'Murid Kelas Anda', count: students.length, color: 'emerald', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+                    { label: 'Jumlah Kehadiran Murid', count: hadirCount, color: 'blue', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+                    { label: 'Logbook Anda', count: myLogs.length, color: 'amber', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+                ].map((item, idx) => (
+                    <div key={idx} className="bg-white rounded-xl p-6 shadow-sm card-hover border border-gray-100">
+                        <div className="flex items-center justify-between mb-4"><div className={`w-12 h-12 bg-${item.color}-100 rounded-lg flex items-center justify-center`}><svg className={`w-6 h-6 text-${item.color}-600`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg></div><span className={`text-3xl font-bold text-${item.color}-600`}>{item.count}</span></div>
+                        <p className="text-gray-500 text-sm">{item.label}</p>
+                    </div>
+                ))}
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Senarai Murid Kelas {user.kelas}</h3>
+                <table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Umur</th><th className="px-4 py-3 text-left font-medium text-gray-600">Jumlah Hadir</th></tr></thead><tbody className="divide-y divide-gray-100">
+                    {students.map(s => { const sAtt = allAtt.filter(a => a.studentId === s.id && a.status === 'Hadir').length; return <tr key={s.id}><td className="px-4 py-3">{s.nama}</td><td className="px-4 py-3">{s.tahun} tahun</td><td className="px-4 py-3"><span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs">{sAtt} hari</span></td></tr>; })}
+                </tbody></table>
+            </div>
+        </div>
+    );
+};
+
+// ==================== STAFF MANAGEMENT ====================
+const StaffManagement = ({ user }) => {
+    const [staffs, setStaffs] = useState([]); 
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [form, setForm] = useState({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', password: '' });
+    const fetchStaff = async () => {
+        const { data, error } = await _supabase.from('staff').select('*');
+        if (error) {
+            console.error("Ralat ambil data:", error.message);
+        } else {
+            setStaffs(data || []); 
+        }
+    };
+
+    useEffect(() => {
+        fetchStaff();
+    }, []);
+
+    const addStaff = () => { setEditId(null); setForm({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', password: '' }); setShowForm(true); };
+    const editStaff = (s) => { setEditId(s.id); setForm(s); setShowForm(true); };
+
+    const saveStaff = async () => {
+        if (!form.nama || !form.ic || !form.kelas) return alert('Sila lengkapkan maklumat');
+        
+        if (editId) {
+            const { error } = await _supabase.from('staff').update(form).eq('id', editId);
+            if (error) alert('Ralat semasa kemas kini: ' + error.message);
+        } else {
+            const { error } = await _supabase.from('staff').insert([form]);
+            if (error) alert('Ralat semasa menambah: ' + error.message);
+        }
+        
+        setShowForm(false);
+        fetchStaff(); 
+    };
+
+    const deleteStaff = async (id) => { 
+        if (confirm('Adakah anda pasti?')) { 
+            const { error } = await _supabase.from('staff').delete().eq('id', id);
+            if (error) alert('Ralat padam: ' + error.message);
+            else fetchStaff(); 
+        } 
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Staff</h2><button onClick={addStaff} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Staff</button></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">No IC</th><th className="px-4 py-3 text-left font-medium text-gray-600">No HP</th><th className="px-4 py-3 text-left font-medium text-gray-600">Tarikh Mula</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
+                {staffs.map(s => (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.ic}</td><td className="px-4 py-3">{s.noHp}</td><td className="px-4 py-3">{s.tarikhMula}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStaff(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Edit</button><button onClick={() => deleteStaff(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Padam</button></div></td></tr>))}
+            </tbody></table></div>
+            {showForm && <Modal title={editId ? 'Edit Maklumat Staff' : 'Tambah Staff Baru'} onClose={() => setShowForm(false)}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Nama Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="No IC" value={form.ic} onChange={v => setForm({...form, ic: v})} /><Field label="No Telefon" value={form.noHp} onChange={v => setForm({...form, noHp: v})} /><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} /><Field label="Kata Laluan" type="password" value={form.password} onChange={v => setForm({...form, password: v})} /></div>
+                <button onClick={saveStaff} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+const StaffAttendance = () => {
+    const [staffs] = useState(getData('users').filter(u => u.role === 'staff'));
+    const [attData, setAttData] = useState(getData('staffAttendance'));
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [editMode, setEditMode] = useState(false);
+    const saveAttendance = () => { const existing = attData.filter(a => a.tarikh !== selectedDate); const newEntries = staffs.map(s => { const existingEntry = attData.find(a => a.staffId === s.id && a.tarikh === selectedDate); return existingEntry || { id: generateId(), staffId: s.id, tarikh: selectedDate, status: 'Hadir' }; }); const updated = [...existing, ...newEntries]; setData('staffAttendance', updated); setAttData(updated); setEditMode(false); };
+    const getDayStatus = (staffId) => { const entry = attData.find(a => a.staffId === staffId && a.tarikh === selectedDate); return entry ? entry.status : 'Hadir'; };
+    const updateStatus = (staffId, status) => { setAttData(prev => { const idx = prev.findIndex(a => a.staffId === staffId && a.tarikh === selectedDate); if (idx !== -1) { prev[idx].status = status; } return [...prev]; }); };
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Kehadiran Staff</h2><div className="flex gap-2 items-center"><input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />{!editMode && <button onClick={() => setEditMode(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">Edit Kehadiran</button>}{editMode && <button onClick={saveAttendance} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Simpan</button>}</div></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-center font-medium text-gray-600">Status</th><th className="px-4 py-3 text-center font-medium text-gray-600">Jumlah Hadir</th></tr></thead><tbody className="divide-y divide-gray-100">
+                {staffs.map(s => { const status = getDayStatus(s.id); const total = attData.filter(a => a.staffId === s.id && a.status === 'Hadir').length; const color = status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : status === 'Cuti' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'; return (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3 text-center">{editMode ? (<select value={status} onChange={e => updateStatus(s.id, e.target.value)} className="px-2 py-1 border rounded text-sm"><option>Hadir</option><option>Cuti</option><option>Tidak Hadir</option><option>Sakit</option></select>) : <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{status}</span>}</td><td className="px-4 py-3 text-center"><span className="font-medium">{total}</span></td></tr>); })}
+            </tbody></table></div>
+        </div>
+    );
+};
+
+const GradeManagement = () => {
+    const [grades, setGrades] = useState(getData('grades'));
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [form, setForm] = useState({ gred: '', min: '', max: '' });
+    const addGrade = () => { setEditId(null); setForm({ gred: '', min: '', max: '' }); setShowForm(true); };
+    const editGrade = (g) => { setEditId(g.id); setForm(g); setShowForm(true); };
+    const saveGrade = () => { if (!form.gred || form.min === '' || form.max === '') return alert('Lengkapkan maklumat'); const all = [...grades]; if (editId) { const idx = all.findIndex(g => g.id === editId); if (idx !== -1) all[idx] = { ...all[idx], ...form }; } else { all.push({ ...form, id: generateId(), min: parseInt(form.min), max: parseInt(form.max) }); } setData('grades', all); setGrades(all); setShowForm(false); };
+    const deleteGrade = (id) => { setData('grades', grades.filter(g => g.id !== id)); setGrades(grades.filter(g => g.id !== id)); };
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Gred Markah</h2><button onClick={addGrade} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Gred</button></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Gred</th><th className="px-4 py-3 text-left font-medium text-gray-600">Markah Minimum</th><th className="px-4 py-3 text-left font-medium text-gray-600">Markah Maksimum</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
+                {grades.map(g => (<tr key={g.id} className="hover:bg-gray-50"><td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{g.gred}</span></td><td className="px-4 py-3">{g.min}</td><td className="px-4 py-3">{g.max}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editGrade(g)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button><button onClick={() => deleteGrade(g.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button></div></td></tr>))}
+            </tbody></table></div>
+            {showForm && <Modal title={editId ? 'Edit Gred' : 'Tambah Gred Baru'} onClose={() => setShowForm(false)}>
+                <div className="space-y-4"><Field label="Gred" value={form.gred} onChange={v => setForm({...form, gred: v})} /><Field label="Markah Minimum" type="number" value={form.min} onChange={v => setForm({...form, min: v})} /><Field label="Markah Maksimum" type="number" value={form.max} onChange={v => setForm({...form, max: v})} /></div>
+                <button onClick={saveGrade} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+const LogbookMonitor = () => {
+    const [logbooks] = useState(getData('logbooks'));
+    const [staffs] = useState(getData('users').filter(u => u.role === 'staff'));
+    const [filterGuru, setFilterGuru] = useState('');
+    const [filterTarikh, setFilterTarikh] = useState('');
+    const [filterTahun, setFilterTahun] = useState('');
+    const filtered = logbooks.filter(l => { if (filterGuru && l.staffId !== filterGuru) return false; if (filterTarikh && l.tarikh !== filterTarikh) return false; if (filterTahun && l.tahun !== parseInt(filterTahun)) return false; return true; });
+    const yearOptions = []; const currentYr = new Date().getFullYear(); for (let y = currentYr; y <= 2050; y++) yearOptions.push(y);
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Monitoring Logbook Guru</h2>
+            <div className="flex gap-4 mb-6 flex-wrap">
+                <select value={filterGuru} onChange={e => setFilterGuru(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Guru</option>{staffs.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}</select>
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Tahun</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                <input type="date" value={filterTarikh} onChange={e => setFilterTarikh(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+                {(filterGuru || filterTarikh || filterTahun) && <button onClick={() => { setFilterGuru(''); setFilterTarikh(''); setFilterTahun(''); }} className="px-3 py-2 bg-gray-200 rounded-lg text-sm">Reset</button>}
+            </div>
+            <div className="grid gap-4">
+                {filtered.map(lb => { const guru = getStaffById(lb.staffId); return (<div key={lb.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover"><div className="flex justify-between items-start mb-3"><div><h3 className="font-semibold text-gray-800">{guru?.nama || 'Tidak diketahui'}</h3><p className="text-sm text-gray-500">{guru?.kelas}</p></div><div className="flex gap-2"><span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{lb.tahun}</span><span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">{lb.tarikh}</span></div></div><p className="text-gray-700 mb-2"><span className="font-medium">Aktiviti:</span> {lb.aktiviti}</p>{lb.catatan && <p className="text-gray-600 text-sm"><span className="font-medium">Catatan:</span> {lb.catatan}</p>}</div>); })}
+                {filtered.length === 0 && <p className="text-center text-gray-500 py-8">Tiada logbook ditemui</p>}
+            </div>
+        </div>
+    );
+};
+
+// ==================== CALENDAR (ADMIN & STAFF) ====================
+const CalendarPage = ({ user }) => {
+    const [selectedYear, setSelectedYear] = useState(2024);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [events, setEvents] = useState(getData('calendarEvents'));
+    const [showForm, setShowForm] = useState(false);
+    const [selectedDay, setSelectedDay] = useState(null);
+    const [formData, setFormData] = useState({ title: '', type: 'aktiviti' });
+    const isAdmin = user.role === 'admin';
+    const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+    const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+    const getDaysInMonth = (y, m) => new Date(y, m, 0).getDate();
+    const getFirstDayOfMonth = (y, m) => new Date(y, m - 1, 1).getDay();
+    const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
+    const firstDay = getFirstDayOfMonth(selectedYear, selectedMonth);
+    const openDayForm = (day) => { if (!isAdmin) return; setSelectedDay(day); setFormData({ title: '', type: 'aktiviti' }); setShowForm(true); };
+    const saveEvent = () => { if (!formData.title || !selectedDay) return; const tarikh = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`; setEvents(prev => { const updated = [...prev, { ...formData, id: generateId(), tarikh }]; setData('calendarEvents', updated); return updated; }); setShowForm(false); };
+    const getDayEvents = (day) => { const tarikh = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`; return events.filter(e => e.tarikh === tarikh); };
+    const deleteEvent = (id) => { const updated = events.filter(e => e.id !== id); setData('calendarEvents', updated); setEvents(updated); };
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+    const typeColors = { aktiviti: 'bg-blue-100 text-blue-700', cuti: 'bg-red-100 text-red-700', lain: 'bg-purple-100 text-purple-700' };
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Kalendar PASTI</h2>
+            <div className="flex gap-4 mb-6 items-center flex-wrap">
+                <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="px-3 py-2 border rounded-lg">{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="px-3 py-2 border rounded-lg">{monthNames.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
+                {!isAdmin && <span className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">Mod Lihat Sahaja</span>}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div className="grid grid-cols-7 gap-1 mb-2">{dayNames.map(d => <div key={d} className="text-center text-xs font-medium text-gray-500 py-2">{d}</div>)}</div>
+                <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} className="h-24 bg-gray-50 rounded" />)}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1; const dayEvts = getDayEvents(day);
+                        return (<div key={day} className={`h-24 border border-gray-100 rounded p-1 overflow-hidden ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`} onClick={() => openDayForm(day)}>
+                            <div className="text-xs font-medium text-gray-700 mb-1">{day}</div>
+                            {dayEvts.map(ev => (<div key={ev.id} className={`${typeColors[ev.type] || typeColors.lain} text-xs px-1 py-0.5 rounded mb-0.5 truncate`}>{ev.title}</div>))}
+                        </div>);
+                    })}
+                </div>
+            </div>
+            {showForm && <Modal title={`Aktiviti ${selectedDay}/${selectedMonth}/${selectedYear}`} onClose={() => setShowForm(false)}>
+                <div className="space-y-4">
+                    <div className="mb-3"><p className="text-sm font-medium text-gray-700 mb-2">Senarai Aktiviti:</p>
+                        {getDayEvents(selectedDay).map(ev => (<div key={ev.id} className="flex justify-between items-center bg-gray-50 p-2 rounded mb-1"><span className={`${typeColors[ev.type]} px-2 py-1 rounded text-xs`}>{ev.title} ({ev.type})</span><button onClick={() => deleteEvent(ev.id)} className="text-red-500 text-xs hover:text-red-700">Padam</button></div>))}</div>
+                    <Field label="Tajuk Aktiviti" value={formData.title} onChange={v => setFormData({...formData, title: v})} />
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Jenis</label><select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="aktiviti">Aktiviti</option><option value="cuti">Cuti Umum</option><option value="lain">Lain-lain</option></select></div>
+                </div>
+                <button onClick={saveEvent} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Tambah</button>
+            </Modal>}
+        </div>
+    );
+};
+
+// ==================== STUDENT MANAGEMENT ====================
+const StudentManagement = ({ user }) => {
+    const [students, setStudents] = useState(getData('students'));
+    const [staffs] = useState(getData('users').filter(u => u.role === 'staff'));
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [filterKelas, setFilterKelas] = useState('');
+    const [filterTahun, setFilterTahun] = useState('');
+    const [filterSesi, setFilterSesi] = useState('');
+    const isAdmin = user.role === 'admin';
+    const [form, setForm] = useState({ nama: '', tarikhLahir: '', tahun: 4, kelas: '', namaIbu: '', namaBapa: '', alamat: '', tahunSesi: new Date().getFullYear() });
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+    const addStudent = () => { setEditId(null); setForm({ nama: '', tarikhLahir: '', tahun: 4, kelas: isAdmin ? '' : user.kelas, namaIbu: '', namaBapa: '', alamat: '', tahunSesi: currentYear }); setShowForm(true); };
+    const editStudent = (s) => { setEditId(s.id); setForm(s); setShowForm(true); };
+    const saveStudent = () => {
+        if (!form.nama || !form.kelas || !form.tarikhLahir) return alert('Lengkapkan maklumat');
+        const all = [...students]; const guruKelas = staffs.find(s => s.kelas === form.kelas);
+        if (editId) { const idx = all.findIndex(s => s.id === editId); if (idx !== -1) all[idx] = { ...all[idx], ...form, guruId: guruKelas?.id || all[idx].guruId }; }
+        else { all.push({ ...form, id: generateId(), guruId: guruKelas?.id || '' }); }
+        setData('students', all); setStudents(all); setShowForm(false);
+    };
+    const deleteStudent = (id) => { if (confirm('Adakah anda pasti?')) { setData('students', students.filter(s => s.id !== id)); setStudents(students.filter(s => s.id !== id)); } };
+    const filtered = students.filter(s => {
+        if (!isAdmin && s.kelas !== user.kelas) return false;
+        if (filterKelas && s.kelas !== filterKelas) return false;
+        if (filterTahun && s.tahun !== parseInt(filterTahun)) return false;
+        if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false;
+        return true;
+    });
+    const allKelas = [...new Set(students.map(s => s.kelas))];
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Murid</h2><button onClick={addStudent} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Murid</button></div>
+            <div className="flex gap-4 mb-4 flex-wrap">
+                {isAdmin && <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Kelas</option>{allKelas.map(k => <option key={k} value={k}>{k}</option>)}</select>}
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Umur</option><option value="4">4 Tahun</option><option value="5">5 Tahun</option><option value="6">6 Tahun</option></select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Sesi</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                {(filterKelas || filterTahun || filterSesi) && <button onClick={() => { setFilterKelas(''); setFilterTahun(''); setFilterSesi(''); }} className="px-3 py-2 bg-gray-200 rounded-lg text-sm">Reset</button>}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Umur</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">Sesi</th><th className="px-4 py-3 text-left font-medium text-gray-600">Guru</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
+                {filtered.map(s => { const guru = getStaffById(s.guruId); return (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.tahun} thn</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.tahunSesi || currentYear}</td><td className="px-4 py-3 text-xs">{guru?.nama || '-'}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStudent(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button><button onClick={() => deleteStudent(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button></div></td></tr>); })}
+            </tbody></table></div>
+            {showForm && <Modal title={editId ? 'Edit Murid' : 'Tambah Murid Baru'} onClose={() => setShowForm(false)}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><div><label className="block text-sm font-medium text-gray-700 mb-1">Umur (Tahun)</label><select value={form.tahun} onChange={e => setForm({...form, tahun: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg"><option value={4}>4 Tahun</option><option value={5}>5 Tahun</option><option value={6}>6 Tahun</option></select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Tahun Sesi</label><select value={form.tahunSesi || currentYear} onChange={e => setForm({...form, tahunSesi: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg">{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select></div><Field label="Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="Nama Ibu" value={form.namaIbu} onChange={v => setForm({...form, namaIbu: v})} /><Field label="Nama Bapa" value={form.namaBapa} onChange={v => setForm({...form, namaBapa: v})} /><div className="md:col-span-2"><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /></div></div>
+                <button onClick={saveStudent} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+// ==================== STUDENT INFO PAGE (PRINTABLE) ====================
+const StudentInfoPage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students] = useState(isAdmin ? getData('students') : getData('students').filter(s => s.kelas === user.kelas));
+    const [selectedId, setSelectedId] = useState('');
+    const [filterTahun, setFilterTahun] = useState('');
+    const [filterSesi, setFilterSesi] = useState('');
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+    const filtered = students.filter(s => { if (filterTahun && s.tahun !== parseInt(filterTahun)) return false; if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false; return true; });
+    const selectedStudent = students.find(s => s.id === selectedId);
+    const studentAtt = getData('studentAttendance');
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Maklumat Murid</h2>
+            <div className="flex gap-4 mb-4 flex-wrap no-print">
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Umur</option><option value="4">4 Tahun</option><option value="5">5 Tahun</option><option value="6">6 Tahun</option></select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Sesi</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Pilih Murid</option>{filtered.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}</select>
+                {selectedId && <button onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm">🖨 Cetak</button>}
+            </div>
+            {selectedStudent && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 print-card max-w-3xl mx-auto">
+                    <div className="text-center mb-6 border-b pb-4"><h1 className="text-2xl font-bold text-gray-800">Maklumat Murid</h1><p className="text-gray-500">Sistem Pengurusan PASTI</p></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><p className="text-sm text-gray-500">Nama Penuh</p><p className="font-semibold text-gray-800 text-lg">{selectedStudent.nama}</p></div>
+                        <div><p className="text-sm text-gray-500">Tarikh Lahir</p><p className="font-semibold text-gray-800">{selectedStudent.tarikhLahir}</p></div>
+                        <div><p className="text-sm text-gray-500">Umur</p><p className="font-semibold text-gray-800">{selectedStudent.tahun} Tahun</p></div>
+                        <div><p className="text-sm text-gray-500">Kelas</p><p className="font-semibold text-gray-800">{selectedStudent.kelas}</p></div>
+                        <div><p className="text-sm text-gray-500">Tahun Sesi</p><p className="font-semibold text-gray-800">{selectedStudent.tahunSesi || currentYear}</p></div>
+                        <div><p className="text-sm text-gray-500">Nama Guru Kelas</p><p className="font-semibold text-gray-800">{getStaffById(selectedStudent.guruId)?.nama || '-'}</p></div>
+                        <div><p className="text-sm text-gray-500">Alamat</p><p className="font-semibold text-gray-800">{selectedStudent.alamat || '-'}</p></div>
+                    </div>
+                    <div className="mt-6 pt-4 border-t">
+                        <h3 className="font-bold text-gray-800 mb-3">Maklumat Ibu Bapa</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-blue-50 p-4 rounded-lg"><p className="text-sm text-blue-600 font-medium">Nama Ibu</p><p className="font-semibold text-gray-800 text-lg mt-1">{selectedStudent.namaIbu || '-'}</p></div>
+                            <div className="bg-purple-50 p-4 rounded-lg"><p className="text-sm text-purple-600 font-medium">Nama Bapa</p><p className="font-semibold text-gray-800 text-lg mt-1">{selectedStudent.namaBapa || '-'}</p></div>
+                        </div>
+                    </div>
+                    <div className="mt-6 pt-4 border-t">
+                        <h3 className="font-bold text-gray-800 mb-3">Rekod Kehadiran</h3>
+                        <p className="text-gray-800">Jumlah Kehadiran: <span className="font-bold text-emerald-600">{studentAtt.filter(a => a.studentId === selectedStudent.id && a.status === 'Hadir').length} hari</span></p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== STUDENT ATTENDANCE ====================
+const StudentAttendance = ({ user }) => {
+    const students = getData('students').filter(s => s.kelas === user.kelas);
+    const [attData, setAttData] = useState(getData('studentAttendance'));
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [editMode, setEditMode] = useState(false);
+    const saveAttendance = () => { const existing = attData.filter(a => a.tarikh !== selectedDate || !students.some(s => s.id === a.studentId)); const newEntries = students.map(s => { const existingEntry = attData.find(a => a.studentId === s.id && a.tarikh === selectedDate); return existingEntry || { id: generateId(), studentId: s.id, tarikh: selectedDate, status: 'Hadir' }; }); const updated = [...existing, ...newEntries]; setData('studentAttendance', updated); setAttData(updated); setEditMode(false); };
+    const getStatus = (studentId) => { const entry = attData.find(a => a.studentId === studentId && a.tarikh === selectedDate); return entry ? entry.status : 'Hadir'; };
+    const updateStatus = (studentId, status) => { setAttData(prev => { const idx = prev.findIndex(a => a.studentId === studentId && a.tarikh === selectedDate); if (idx !== -1) { prev[idx].status = status; } return [...prev]; }); };
+    const getStudentTotalHadir = (studentId) => attData.filter(a => a.studentId === studentId && a.status === 'Hadir').length;
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Kehadiran Murid - {user.kelas}</h2><div className="flex gap-2 items-center flex-wrap"><input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />{!editMode && <button onClick={() => setEditMode(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">Edit Kehadiran</button>}{editMode && <button onClick={saveAttendance} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Simpan</button>}<button onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm">🖨 Cetak PDF</button></div></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden print-card">
+                <div className="p-4 border-b no-print"><h3 className="font-bold text-gray-800">Tarikh: {selectedDate}</h3></div>
+                <table className="w-full text-sm print-table"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Bil</th><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-center font-medium text-gray-600">Status</th><th className="px-4 py-3 text-center font-medium text-gray-600">Jumlah Hadir</th></tr></thead><tbody className="divide-y divide-gray-100">
+                    {students.map((s, idx) => { const status = getStatus(s.id); const total = getStudentTotalHadir(s.id); const color = status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : status === 'Tidak Hadir' ? 'bg-red-100 text-red-700' : status === 'Cuti' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'; return (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3">{idx + 1}</td><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3 text-center">{editMode ? (<select value={status} onChange={e => updateStatus(s.id, e.target.value)} className="px-2 py-1 border rounded text-sm"><option>Hadir</option><option>Tidak Hadir</option><option>Cuti</option><option>Sakit</option></select>) : <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{status}</span>}</td><td className="px-4 py-3 text-center"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">{total} hari</span></td></tr>); })}
+                </tbody></table>
+            </div>
+        </div>
+    );
+};
+
+// ==================== LOGBOOK (STAFF) BY YEAR ====================
+const LogbookPage = ({ user }) => {
+    const [allLogbooks] = useState(getData('logbooks').filter(l => l.staffId === user.id));
+    const [selectedTahun, setSelectedTahun] = useState(new Date().getFullYear());
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+    const logbooks = allLogbooks.filter(l => l.tahun === selectedTahun);
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [form, setForm] = useState({ tarikh: new Date().toISOString().split('T')[0], aktiviti: '', catatan: '', gambar: '' });
+    const addLogbook = () => { setEditId(null); setForm({ tarikh: new Date().toISOString().split('T')[0], aktiviti: '', catatan: '', gambar: '' }); setShowForm(true); };
+    const editLogbook = (lb) => { setEditId(lb.id); setForm(lb); setShowForm(true); };
+    const saveLogbook = () => {
+        if (!form.tarikh || !form.aktiviti) return alert('Lengkapkan maklumat');
+        const all = getData('logbooks');
+        if (editId) { const idx = all.findIndex(l => l.id === editId); if (idx !== -1) all[idx] = { ...all[idx], ...form, staffId: user.id, tahun: selectedTahun }; }
+        else { all.push({ ...form, id: generateId(), staffId: user.id, tahun: selectedTahun }); }
+        setData('logbooks', all); setShowForm(false);
+    };
+    const deleteLogbook = (id) => { if (confirm('Padam logbook ini?')) { const all = getData('logbooks'); setData('logbooks', all.filter(l => l.id !== id)); } };
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Logbook Harian</h2>
+                <div className="flex gap-2 items-center">
+                    <select value={selectedTahun} onChange={e => setSelectedTahun(parseInt(e.target.value))} className="px-3 py-2 border rounded-lg text-sm">{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                    <button onClick={addLogbook} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Logbook</button>
+                </div>
+            </div>
+            <div className="grid gap-4">
+                {logbooks.sort((a, b) => b.tarikh.localeCompare(a.tarikh)).map(lb => (<div key={lb.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover"><div className="flex justify-between items-start mb-3"><span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{lb.tarikh}</span><div className="flex gap-2"><button onClick={() => editLogbook(lb)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button><button onClick={() => deleteLogbook(lb.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button></div></div><p className="text-gray-800 font-medium mb-1">{lb.aktiviti}</p>{lb.catatan && <p className="text-gray-600 text-sm">{lb.catatan}</p>}</div>))}
+                {logbooks.length === 0 && <p className="text-center text-gray-500 py-8">Tiada logbook untuk tahun {selectedTahun}. Klik butang "Tambah Logbook" untuk mula.</p>}
+            </div>
+            {showForm && <Modal title={editId ? 'Edit Logbook' : 'Tambah Logbook'} onClose={() => setShowForm(false)}>
+                <div className="space-y-4"><Field label="Tarikh" type="date" value={form.tarikh} onChange={v => setForm({...form, tarikh: v})} /><div><label className="block text-sm font-medium text-gray-700 mb-1">Aktiviti Harian</label><textarea value={form.aktiviti} onChange={e => setForm({...form, aktiviti: e.target.value})} rows={3} className="w-full px-3 py-2 border rounded-lg" placeholder="Terangkan aktiviti hari ini" /></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label><textarea value={form.catatan} onChange={e => setForm({...form, catatan: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" placeholder="Catatan tambahan (pilihan)" /></div><Field label="URL Gambar (pilihan)" value={form.gambar} onChange={v => setForm({...form, gambar: v})} /></div>
+                <button onClick={saveLogbook} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+// ==================== PERFORMANCE (ADD MARKS WITHOUT DATE) ====================
+const PerformancePage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students] = useState(isAdmin ? getData('students') : getData('students').filter(s => s.kelas === user.kelas));
+    const [marks, setMarks] = useState(getData('studentMarks'));
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState({ studentId: '', subjek: '', markah: '' });
+    const [filterStudent, setFilterStudent] = useState('');
+    const addMark = () => { setForm({ studentId: '', subjek: '', markah: '' }); setShowForm(true); };
+    const saveMark = () => {
+        if (!form.studentId || !form.subjek || !form.markah) return alert('Lengkapkan maklumat');
+        const all = [...marks]; const stu = students.find(s => s.id === form.studentId);
+        all.push({ ...form, id: generateId(), markah: parseInt(form.markah), tahunSesi: stu?.tahunSesi || new Date().getFullYear() });
+        setData('studentMarks', all); setMarks(all); setShowForm(false);
+    };
+    const deleteMark = (id) => { setData('studentMarks', marks.filter(m => m.id !== id)); setMarks(marks.filter(m => m.id !== id)); };
+    const filteredStudents = filterStudent ? students.filter(s => s.id === filterStudent) : students;
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Prestasi Murid - Markah</h2><button onClick={addMark} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Markah</button></div>
+            <div className="mb-4"><select value={filterStudent} onChange={e => setFilterStudent(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Murid</option>{students.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}</select></div>
+            {filteredStudents.map(s => {
+                const sMarks = marks.filter(m => m.studentId === s.id); if (sMarks.length === 0 && filterStudent === s.id) return <p key={s.id} className="text-gray-500 text-center py-4">Tiada rekod markah untuk {s.nama}</p>;
+                if (sMarks.length === 0) return null;
+                const avg = sMarks.length > 0 ? Math.round(sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length) : 0; const avgGrade = getGradeForMark(avg);
+                const gradeColor = avgGrade === 'A' ? 'bg-emerald-100 text-emerald-700' : avgGrade === 'B' ? 'bg-blue-100 text-blue-700' : avgGrade === 'C' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+                return (<div key={s.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4"><div className="flex justify-between items-start mb-4"><div><h3 className="font-bold text-gray-800">{s.nama}</h3><p className="text-sm text-gray-500">{s.kelas} • {s.tahun} Tahun</p></div><div className="text-right"><span className="text-2xl font-bold text-gray-800">{avg}%</span><br /><span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColor}`}>Gred: {avgGrade}</span></div></div>
+                    <table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left font-medium text-gray-600">Subjek</th><th className="px-4 py-2 text-center font-medium text-gray-600">Markah</th><th className="px-4 py-2 text-center font-medium text-gray-600">Gred</th><th className="px-4 py-2 text-center font-medium text-gray-600"></th></tr></thead><tbody className="divide-y divide-gray-100">
+                        {sMarks.map(m => (<tr key={m.id}><td className="px-4 py-2 font-medium">{m.subjek}</td><td className="px-4 py-2 text-center">{m.markah}</td><td className="px-4 py-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${getGradeForMark(m.markah) === 'A' ? 'bg-emerald-100 text-emerald-700' : getGradeForMark(m.markah) === 'B' ? 'bg-blue-100 text-blue-700' : getGradeForMark(m.markah) === 'C' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{getGradeForMark(m.markah)}</span></td><td className="px-4 py-2 text-center"><button onClick={() => deleteMark(m.id)} className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button></td></tr>))}
+                    </tbody></table></div>);
+            })}
+            {showForm && <Modal title="Tambah Markah Peperiksaan" onClose={() => setShowForm(false)}>
+                <div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Murid</label><select value={form.studentId} onChange={e => setForm({...form, studentId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Pilih Murid</option>{students.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}</select></div><Field label="Subjek" value={form.subjek} onChange={v => setForm({...form, subjek: v})} /><Field label="Markah" type="number" value={form.markah} onChange={v => setForm({...form, markah: v})} /></div>
+                <button onClick={saveMark} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+// ==================== PERFORMANCE SUMMARY (PRINTABLE WITH ATTENDANCE) ====================
+const PerformanceSummaryPage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students] = useState(isAdmin ? getData('students') : getData('students').filter(s => s.kelas === user.kelas));
+    const [marks] = useState(getData('studentMarks'));
+    const [attData] = useState(getData('studentAttendance'));
+    const [filterTahun, setFilterTahun] = useState('');
+    const [filterSesi, setFilterSesi] = useState('');
+    const [selectedId, setSelectedId] = useState('');
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+    const filtered = students.filter(s => { if (filterTahun && s.tahun !== parseInt(filterTahun)) return false; if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false; return true; });
+    const selectedStudent = filtered.find(s => s.id === selectedId);
+    const handlePrint = () => window.print();
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Ringkasan Prestasi Murid</h2>
+            <div className="flex gap-4 mb-4 flex-wrap no-print">
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Umur</option><option value="4">4 Tahun</option><option value="5">5 Tahun</option><option value="6">6 Tahun</option></select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Sesi</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Pilih Murid</option>{filtered.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}</select>
+                {selectedId && <button onClick={handlePrint} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm">🖨 Cetak</button>}
+            </div>
+            {selectedStudent && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 print-card max-w-4xl mx-auto">
+                    <div className="text-center mb-6 border-b pb-4"><h1 className="text-2xl font-bold text-gray-800">Ringkasan Prestasi Murid</h1><p className="text-gray-500">Sistem Pengurusan PASTI - {selectedStudent.tahunSesi || currentYear}</p></div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 bg-gray-50 p-4 rounded-lg">
+                        <div><p className="text-xs text-gray-500">Nama</p><p className="font-semibold">{selectedStudent.nama}</p></div>
+                        <div><p className="text-xs text-gray-500">Kelas</p><p className="font-semibold">{selectedStudent.kelas}</p></div>
+                        <div><p className="text-xs text-gray-500">Umur</p><p className="font-semibold">{selectedStudent.tahun} Tahun</p></div>
+                        <div><p className="text-xs text-gray-500">Sesi</p><p className="font-semibold">{selectedStudent.tahunSesi || currentYear}</p></div>
+                    </div>
+                    <div className="mb-6">
+                        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Kehadiran</h3>
+                        <div className="bg-emerald-50 p-4 rounded-lg"><p className="text-emerald-800 font-semibold">Jumlah Kehadiran: {attData.filter(a => a.studentId === selectedStudent.id && a.status === 'Hadir').length} hari</p></div>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>Prestasi Akademik</h3>
+                        {(() => {
+                            const sMarks = marks.filter(m => m.studentId === selectedStudent.id);
+                            if (sMarks.length === 0) return <p className="text-gray-500 text-center py-4">Tiada rekod markah</p>;
+                            const avg = Math.round(sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length);
+                            const avgGrade = getGradeForMark(avg);
+                            const gradeColor = avgGrade === 'A' ? 'bg-emerald-100 text-emerald-700' : avgGrade === 'B' ? 'bg-blue-100 text-blue-700' : avgGrade === 'C' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+                            return (<div><div className="flex gap-4 mb-4"><div className="bg-blue-50 p-3 rounded-lg flex-1 text-center"><p className="text-sm text-blue-600">Purata Markah</p><p className="text-2xl font-bold text-blue-800">{avg}%</p></div><div className={`${gradeColor} p-3 rounded-lg flex-1 text-center`}><p className="text-sm">Gred Keseluruhan</p><p className="text-2xl font-bold">{avgGrade}</p></div></div>
+                                <table className="w-full text-sm print-table"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left font-medium text-gray-600">Subjek</th><th className="px-4 py-2 text-center font-medium text-gray-600">Markah</th><th className="px-4 py-2 text-center font-medium text-gray-600">Gred</th></tr></thead><tbody className="divide-y divide-gray-100">
+                                    {sMarks.map(m => (<tr key={m.id}><td className="px-4 py-2 font-medium">{m.subjek}</td><td className="px-4 py-2 text-center">{m.markah}</td><td className="px-4 py-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${getGradeForMark(m.markah) === 'A' ? 'bg-emerald-100 text-emerald-700' : getGradeForMark(m.markah) === 'B' ? 'bg-blue-100 text-blue-700' : getGradeForMark(m.markah) === 'C' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{getGradeForMark(m.markah)}</span></td></tr>))}
+                                </tbody></table></div>);
+                        })()}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== PERFORMANCE BY YEAR ====================
+const PerformanceByYearPage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students] = useState(isAdmin ? getData('students') : getData('students').filter(s => s.kelas === user.kelas));
+    const [marks] = useState(getData('studentMarks'));
+    const [attData] = useState(getData('studentAttendance'));
+    const [filterTahun, setFilterTahun] = useState('');
+    const [filterSesi, setFilterSesi] = useState('');
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+    const filtered = students.filter(s => { if (filterTahun && s.tahun !== parseInt(filterTahun)) return false; if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false; return true; });
+    const handlePrint = () => window.print();
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Prestasi Mengikut Tahun</h2>
+                <button onClick={handlePrint} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm no-print">🖨 Cetak</button>
+            </div>
+            <div className="flex gap-4 mb-4 flex-wrap no-print">
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Umur</option><option value="4">4 Tahun</option><option value="5">5 Tahun</option><option value="6">6 Tahun</option></select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Sesi</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 print-card">
+                <div className="mb-4"><h3 className="text-lg font-bold text-gray-800">Senarai Prestasi Murid</h3><p className="text-sm text-gray-500">Umur: {filterTahun ? `${filterTahun} Tahun` : 'Semua'} | Sesi: {filterSesi || 'Semua'}</p></div>
+                <table className="w-full text-sm print-table"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left font-medium text-gray-600">Bil</th><th className="px-4 py-2 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-2 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-2 text-center font-medium text-gray-600">Kehadiran</th><th className="px-4 py-2 text-center font-medium text-gray-600">Purata</th><th className="px-4 py-2 text-center font-medium text-gray-600">Gred</th></tr></thead><tbody className="divide-y divide-gray-100">
+                    {filtered.map((s, idx) => {
+                        const sMarks = marks.filter(m => m.studentId === s.id);
+                        const sAtt = attData.filter(a => a.studentId === s.id && a.status === 'Hadir').length;
+                        const avg = sMarks.length > 0 ? Math.round(sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length) : '-';
+                        const grade = avg !== '-' ? getGradeForMark(avg) : '-';
+                        const gradeColor = grade === 'A' ? 'bg-emerald-100 text-emerald-700' : grade === 'B' ? 'bg-blue-100 text-blue-700' : grade === 'C' ? 'bg-amber-100 text-amber-700' : grade === 'D' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700';
+                        return (<tr key={s.id}><td className="px-4 py-2">{idx + 1}</td><td className="px-4 py-2 font-medium">{s.nama}</td><td className="px-4 py-2">{s.kelas}</td><td className="px-4 py-2 text-center"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{sAtt} hari</span></td><td className="px-4 py-2 text-center font-medium">{avg !== '-' ? `${avg}%` : '-'}</td><td className="px-4 py-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${gradeColor}`}>{grade}</span></td></tr>);
+                    })}
+                </tbody></table>
+                {filtered.length === 0 && <p className="text-center text-gray-500 py-8">Tiada murid dijumpai</p>}
+            </div>
+        </div>
+    );
+};
+
+// ==================== APP ====================
+const App = () => {
+    return (<AuthProvider><AppContent /></AuthProvider>);
+};
+
+const AppContent = () => {
+    const { user } = useContext(AuthContext);
+    const [currentPage, setCurrentPage] = useState('dashboard');
+    if (!user) return <Login />;
+    const renderPage = () => {
+        switch (currentPage) {
+            case 'dashboard': return user.role === 'admin' ? <AdminDashboard /> : <StaffDashboard user={user} />;
+            case 'profile': return <ProfilePage user={user} />;
+            case 'staff': return user.role === 'admin' ? <StaffManagement user={user} /> : <AdminDashboard />;
+            case 'staffAttendance': return user.role === 'admin' ? <StaffAttendance /> : <AdminDashboard />;
+            case 'gradeManagement': return user.role === 'admin' ? <GradeManagement /> : <AdminDashboard />;
+            case 'logbookMonitor': return user.role === 'admin' ? <LogbookMonitor /> : <AdminDashboard />;
+            case 'calendar': return <CalendarPage user={user} />;
+            case 'students': return <StudentManagement user={user} />;
+            case 'studentInfo': return <StudentInfoPage user={user} />;
+            case 'studentAttendance': return user.role === 'staff' ? <StudentAttendance user={user} /> : <AdminDashboard />;
+            case 'logbook': return user.role === 'staff' ? <LogbookPage user={user} /> : <AdminDashboard />;
+            case 'performance': return <PerformancePage user={user} />;
+            case 'performanceSummary': return <PerformanceSummaryPage user={user} />;
+            case 'performanceByYear': return <PerformanceByYearPage user={user} />;
+            default: return user.role === 'admin' ? <AdminDashboard /> : <StaffDashboard user={user} />;
+        }
+    };
+    return (<div className="flex min-h-screen"><Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} user={user} /><div className="flex-1 overflow-auto"><div className="p-6 lg:p-8">{renderPage()}</div></div></div>);
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
