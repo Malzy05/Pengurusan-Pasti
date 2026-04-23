@@ -113,12 +113,25 @@ const AuthProvider = ({ children }) => {
         const saved = localStorage.getItem('pasti_currentUser');
         return saved ? JSON.parse(saved) : null;
     });
-    const login = (ic, password) => {
-        const users = getData('users');
-        const found = users.find(u => u.ic === ic && u.password === password);
-        if (found) { setUser(found); localStorage.setItem('pasti_currentUser', JSON.stringify(found)); return { success: true, user: found }; }
-        return { success: false, message: 'IC atau kata laluan salah' };
-    };
+    const { data, error } = await _supabase
+        .from('staff')
+        .select('*')
+        .eq('ic', ic)
+        .eq('password', password);
+
+    if (error) {
+        console.error("Ralat Log Masuk:", error.message);
+        return { success: false, message: 'Ralat pelayan Supabase' };
+    }
+
+    if (data && data.length > 0) {
+        const found = data[0]; // Ambil data orang pertama yang sepadan
+        setUser(found); 
+        localStorage.setItem('pasti_currentUser', JSON.stringify(found)); 
+        return { success: true, user: found }; 
+    }
+
+    return { success: false, message: 'IC atau kata laluan salah' };
     const logout = () => { setUser(null); localStorage.removeItem('pasti_currentUser'); };
     const updateUser = (updatedUser) => {
         const users = getData('users');
