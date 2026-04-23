@@ -107,12 +107,20 @@ const initializeData = () => {
     }
 };
 
-const AuthContext = createContext(null);
+// ==================== AUTHENTICATION ====================
+const AuthContext = React.createContext();
+
 const AuthProvider = ({ children }) => {
+    // Ingatan log masuk (Supaya tak perlu login berkali-kali)
     const [user, setUser] = useState(() => {
-        const login = async (ic, password) => {
+        const saved = localStorage.getItem('pasti_currentUser');
+        return saved ? JSON.parse(saved) : null;
+    });
+
+    // Otak Log Masuk (Berhubung dengan Supabase)
+    const login = async (ic, password) => {
         const { data, error } = await _supabase
-            .from('staff')
+            .from('StaffManagement')
             .select('*')
             .eq('ic', ic)
             .eq('password', password);
@@ -132,19 +140,25 @@ const AuthProvider = ({ children }) => {
         return { success: false, message: 'IC atau kata laluan salah' };
     };
 
-    const logout = () => { setUser(null); localStorage.removeItem('pasti_currentUser'); };
-    const updateUser = (updatedUser) => {
-        const users = getData('users');
-        const idx = users.findIndex(u => u.id === updatedUser.id);
-        if (idx !== -1) {
-            const oldIc = users[idx].ic;
-            users[idx] = updatedUser;
-            setData('users', users);
-            setUser(updatedUser);
-            localStorage.setItem('pasti_currentUser', JSON.stringify(updatedUser));
-        }
+    // Fungsi Log Keluar
+    const logout = () => {
+        setUser(null);
+        localStorage.removeItem('pasti_currentUser');
     };
-    return <AuthContext.Provider value={{ user, login, logout, updateUser }}>{children}</AuthContext.Provider>;
+
+    // Fungsi Kemas Kini Profil
+    const updateUser = (data) => {
+        const updated = { ...user, ...data };
+        setUser(updated);
+        localStorage.setItem('pasti_currentUser', JSON.stringify(updated));
+    };
+
+    // Sambungkan otak ke seluruh sistem
+    return (
+        <AuthContext.Provider value={{ user, login, logout, updateUser }}>
+            {children}
+        </AuthContext.Provider>
+    );
 };
 
 const Login = () => {
