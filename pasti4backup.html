@@ -1,0 +1,2267 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pengurusan Pasti Al-Iqbal 2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/fontsource-inter@5.0.0/index.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .sidebar-item:hover, .sidebar-item.active { background: rgba(255,255,255,0.1); }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .card-hover { transition: all 0.2s; }
+        .modal-overlay { background: rgba(0,0,0,0.5); }
+        input, select, textarea { transition: border-color 0.2s; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; }
+            .print-card { box-shadow: none !important; border: 1px solid #ddd !important; page-break-inside: avoid; }
+            .print-table { width: 100%; border-collapse: collapse; }
+            .print-table th, .print-table td { border: 1px solid #ddd; padding: 8px; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+<div id="root"></div>
+<script type="text/babel">
+const { createClient } = supabase;
+const supabaseUrl = 'https://ylpedyqrgovjsfqkhuym.supabase.co';
+const supabaseKey = 'sb_publishable_N0Sfs2TvPUS2R50t7ayROg_UaV1ChN6';
+const _supabase = createClient(supabaseUrl, supabaseKey)
+const { useState, useEffect, useMemo, useCallback, createContext, useContext } = React;
+
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
+const getData = (key) => JSON.parse(localStorage.getItem(`pasti_${key}`) || '[]');
+const setData = (key, data) => localStorage.setItem(`pasti_${key}`, JSON.stringify(data));
+const getGradeForMark = (mark) => {
+    const grades = getData('grades');
+    for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
+    return 'D';
+};
+const getStaffById = (id) => getData('users').find(u => u.id === id);
+const getStudentById = (id) => getData('students').find(s => s.id === id);
+
+const initializeData = () => {
+    if (!localStorage.getItem('pasti_initialized_v4')) {
+        const users = [
+            { id: 'admin1', nama: 'Ahmad bin Ali', role: 'admin', ic: '800101011234', noHp: '012-3456789', alamat: 'Kuala Lumpur', tarikhLahir: '1980-01-01', tarikhMula: '2015-01-01', password: 'admin123' },
+            { id: 'staff1', nama: 'Siti Aminah binti Hassan', role: 'staff', ic: '900202021234', noHp: '013-4567890', alamat: 'Selangor', tarikhLahir: '1990-02-02', tarikhMula: '2018-03-15', kelas: 'Ceria 4 Tahun', password: 'staff123' },
+            { id: 'staff2', nama: 'Nurul Huda binti Ismail', role: 'staff', kelas: 'Ceria 5 Tahun', ic: '910303031234', noHp: '014-5678901', alamat: 'Selangor', tarikhLahir: '1991-03-03', tarikhMula: '2019-06-01', password: 'staff123' },
+            { id: 'staff3', nama: 'Fatimah binti Yusof', role: 'staff', kelas: 'Ceria 6 Tahun', ic: '850404041234', noHp: '015-6789012', alamat: 'Kuala Lumpur', tarikhLahir: '1985-04-04', tarikhMula: '2017-09-01', password: 'staff123' },
+        ];
+        const currentYear = new Date().getFullYear();
+        const students = [
+            { id: 'stu1', nama: 'Muhammad Aiman bin Razak', tarikhLahir: '2018-05-10', tahun: 6, kelas: 'Ceria 6 Tahun', guruId: 'staff3', alamat: 'No 12, Jalan Mawar, KL', namaIbu: 'Zainab binti Omar', namaBapa: 'Razak bin Abdullah', tahunSesi: currentYear },
+            { id: 'stu2', nama: 'Aisyah binti Khalid', tarikhLahir: '2019-08-22', tahun: 5, kelas: 'Ceria 5 Tahun', guruId: 'staff2', alamat: 'No 5, Jalan Melati, SG', namaIbu: 'Noraini binti Ahmad', namaBapa: 'Khalid bin Hassan', tahunSesi: currentYear },
+            { id: 'stu3', nama: 'Adam bin Farid', tarikhLahir: '2020-01-15', tahun: 4, kelas: 'Ceria 4 Tahun', guruId: 'staff1', alamat: 'No 8, Jalan Kenanga, SG', namaIbu: 'Salmah binti Yusof', namaBapa: 'Farid bin Ali', tahunSesi: currentYear },
+            { id: 'stu4', nama: 'Hana binti Zaki', tarikhLahir: '2018-11-30', tahun: 6, kelas: 'Ceria 6 Tahun', guruId: 'staff3', alamat: 'No 22, Jalan Dahlia, KL', namaIbu: 'Rashida binti Mohd', namaBapa: 'Zaki bin Osman', tahunSesi: currentYear },
+            { id: 'stu5', nama: 'Danial bin Hakim', tarikhLahir: '2019-04-18', tahun: 5, kelas: 'Ceria 5 Tahun', guruId: 'staff2', alamat: 'No 15, Jalan Teratai, SG', namaIbu: 'Azizah binti Tan', namaBapa: 'Hakim bin Sulaiman', tahunSesi: currentYear },
+            { id: 'stu6', nama: 'Sofia binti Amran', tarikhLahir: '2020-07-25', tahun: 4, kelas: 'Ceria 4 Tahun', guruId: 'staff1', alamat: 'No 3, Jalan Anggerik, SG', namaIbu: 'Mariam binti Salleh', namaBapa: 'Amran bin Ibrahim', tahunSesi: currentYear },
+        ];
+        setData('users', users);
+        setData('students', students);
+        setData('staffAttendance', [
+            { id: 'sa1', staffId: 'staff1', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'sa2', staffId: 'staff2', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'sa3', staffId: 'staff3', tarikh: '2024-01-15', status: 'Cuti' },
+        ]);
+        setData('grades', [
+            { id: 'g1', gred: 'A', min: 80, max: 100 },
+            { id: 'g2', gred: 'B', min: 65, max: 79 },
+            { id: 'g3', gred: 'C', min: 50, max: 64 },
+            { id: 'g4', gred: 'D', min: 0, max: 49 },
+        ]);
+        setData('studentAttendance', [
+            { id: 'att1', studentId: 'stu1', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att2', studentId: 'stu2', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att3', studentId: 'stu3', tarikh: '2024-01-15', status: 'Tidak Hadir' },
+            { id: 'att4', studentId: 'stu4', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att5', studentId: 'stu5', tarikh: '2024-01-15', status: 'Hadir' },
+            { id: 'att6', studentId: 'stu6', tarikh: '2024-01-15', status: 'Tidak Hadir' },
+        ]);
+        setData('logbooks', [
+            { id: 'lb1', staffId: 'staff1', tarikh: '2024-01-15', tahun: 2024, aktiviti: 'Aktiviti mewarna dan bercerita', catatan: 'Semua murid aktif', gambar: '' },
+            { id: 'lb2', staffId: 'staff2', tarikh: '2024-01-15', tahun: 2024, aktiviti: 'Belajar nombor 1-10', catatan: 'Murid faham dengan baik', gambar: '' },
+        ]);
+        setData('studentMarks', [
+            { id: 'mk1', studentId: 'stu1', subjek: 'Jawi', markah: 85, tahunSesi: currentYear },
+            { id: 'mk2', studentId: 'stu1', subjek: 'Al-Quran', markah: 90, tahunSesi: currentYear },
+            { id: 'mk3', studentId: 'stu2', subjek: 'Jawi', markah: 72, tahunSesi: currentYear },
+            { id: 'mk4', studentId: 'stu2', subjek: 'Bahasa Arab', markah: 68, tahunSesi: currentYear },
+        ]);
+        setData('calendarEvents', []);
+        localStorage.setItem('pasti_initialized_v4', 'true');
+    }
+};
+
+// ==================== AUTHENTICATION ====================
+const AuthContext = React.createContext();
+
+const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
+
+    React.useEffect(() => {
+        // Semak jika ada sesi yang disimpan
+        const savedUser = localStorage.getItem('pasti_currentUser');
+        if (savedUser) {
+            setUser(JSON.parse(savedUser));
+        }
+    }, []);
+
+    const login = async (ic, password) => {
+        try {
+            const { data, error } = await _supabase
+                .from('staff')
+                .select('*')
+                .eq('ic', ic)
+                .eq('password', password)
+                .single();
+
+            if (error || !data) {
+                return { success: false, message: 'No IC atau Kata Laluan salah!' };
+            }
+
+            setUser(data);
+            localStorage.setItem('pasti_currentUser', JSON.stringify(data));
+            return { success: true, role: data.role };
+
+        } catch (error) {
+            console.error("Ralat Log Masuk:", error);
+            return { success: false, message: 'Ralat pelayan. Sila cuba sebentar lagi.' };
+        }
+    };
+
+    const logout = () => {
+        setUser(null);
+        localStorage.removeItem('pasti_currentUser');
+    };
+
+    const updateUser = async (data) => {
+        try {
+            const { error } = await _supabase
+                .from('staff')
+                .update(data)
+                .eq('id', user.id);
+
+            if (error) throw error;
+
+            const updated = { ...user, ...data };
+            setUser(updated);
+            localStorage.setItem('pasti_currentUser', JSON.stringify(updated));
+            
+            return { success: true }; 
+            
+        } catch (error) {
+            console.error("Ralat kemas kini profil:", error.message);
+            return { success: false, message: error.message };
+        }
+    };
+
+    return (
+        <AuthContext.Provider value={{ user, login, logout, updateUser }}>
+            {children}
+        </AuthContext.Provider>
+    );
+};
+
+const Login = () => {
+    const [ic, setIc] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const { login } = useContext(AuthContext);
+    const handleLogin = async (e) => { 
+        e.preventDefault(); 
+        const result = await login(ic, password); 
+        if (!result.success) setError(result.message); 
+    };
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+                <div className="text-center mb-8">
+                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-800">Sistem Pengurusan Pasti Al-Iqbal 2</h1>
+                    <p className="text-gray-500 mt-1">Masukkan kelayakan anda untuk log masuk</p>
+                </div>
+                {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">No IC</label><input type="text" value={ic} onChange={e => setIc(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Masukkan No IC" required /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Kata Laluan</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-lg" placeholder="Masukkan kata laluan" required /></div>
+                    <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors">Log Masuk</button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const Sidebar = ({ currentPage, setCurrentPage, user }) => {
+    const { logout } = useContext(AuthContext);
+    const isAdmin = user.role === 'admin';
+    const menuItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', roles: ['admin', 'staff'] },
+        { id: 'profile', label: 'Profil Saya', icon: 'user', roles: ['admin', 'staff'] },
+        { id: 'staff', label: 'Pengurusan Staff', icon: 'users', roles: ['admin'] },
+        { id: 'staffAttendance', label: 'Kehadiran Staff', icon: 'user-check', roles: ['admin'] },
+        { id: 'gradeManagement', label: 'Pengurusan Gred', icon: 'settings', roles: ['admin'] },
+        { id: 'logbookMonitor', label: 'Logbook Guru', icon: 'book-open', roles: ['admin'] },
+        { id: 'calendar', label: 'Kalendar', icon: 'calendar', roles: ['admin', 'staff'] },
+        { id: 'students', label: 'Pengurusan Murid', icon: 'graduation-cap', roles: ['admin', 'staff'] },
+        { id: 'studentInfo', label: 'Maklumat Murid', icon: 'id-card', roles: ['admin', 'staff'] },
+        { id: 'studentAttendance', label: 'Kehadiran Murid', icon: 'clipboard-check', roles: ['staff'] },
+        { id: 'logbook', label: 'Logbook Harian', icon: 'file-text', roles: ['staff'] },
+        { id: 'performance', label: 'Prestasi Murid', icon: 'bar-chart-3', roles: ['admin', 'staff'] },
+        { id: 'performanceSummary', label: 'Ringkasan Prestasi', icon: 'file-bar-chart', roles: ['admin', 'staff'] },
+        { id: 'performanceByYear', label: 'Prestasi Mengikut Tahun', icon: 'layers', roles: ['admin', 'staff'] },
+    ];
+    const iconMap = {
+        'layout-dashboard': 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+        'user': 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z',
+        'users': 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+        'user-check': 'M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM16 11l2 2 4-4',
+        'settings': 'M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2zM12 9a3 3 0 100 6 3 3 0 000-6z',
+        'book-open': 'M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z',
+        'calendar': 'M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18',
+        'graduation-cap': 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5',
+        'id-card': 'M10 13a5 5 0 017.54.54l3 3a5 5 0 01-7.07 7.07l-1.72-1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71M10 3h8v8h-8z',
+        'clipboard-check': 'M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2M12 2h8v4h-8zM9 14l2 2 4-4',
+        'file-text': 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
+        'bar-chart-3': 'M12 20V10M18 20V4M6 20v-4',
+        'file-bar-chart': 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M12 18v-6M8 18v-4M16 18v-8',
+        'layers': 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+        'log-out': 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9',
+    };
+    const filtered = menuItems.filter(m => m.roles.includes(user.role));
+    return (
+        <div className="w-64 bg-gradient-to-b from-emerald-800 to-emerald-900 min-h-screen text-white no-print flex flex-col">
+            <div className="p-6 border-b border-emerald-700">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <div><h1 className="font-bold text-lg">Pasti Al-Iqbal 2</h1><p className="text-xs text-emerald-300">{isAdmin ? 'Admin' : 'Guru'}</p></div>
+                </div>
+            </div>
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                {filtered.map(item => (
+                    <button key={item.id} onClick={() => setCurrentPage(item.id)}
+                        className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${currentPage === item.id ? 'active bg-emerald-700 font-medium' : 'text-emerald-100 hover:text-white'}`}>
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconMap[item.icon]} /></svg>
+                        {item.label}
+                    </button>
+                ))}
+            </nav>
+            <div className="p-4 border-t border-emerald-700">
+                <div className="px-4 py-2 mb-2"><p className="text-sm font-medium truncate">{user.nama}</p><p className="text-xs text-emerald-300">{user.ic}</p></div>
+                <button onClick={logout} className="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-emerald-100 hover:text-white transition-all">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                    Log Keluar
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const Field = ({ label, type = 'text', value, onChange }) => (
+    <div><label className="block text-sm font-medium text-gray-700 mb-1">{label}</label><input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+);
+const Modal = ({ title, children, onClose }) => (
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b"><h3 className="text-lg font-bold text-gray-800">{title}</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+            <div className="p-6">{children}</div>
+        </div>
+    </div>
+);
+
+// ==================== PROFILE PAGE (SUPABASE VERSION) ====================
+const ProfilePage = ({ user }) => {
+    const { updateUser } = useContext(AuthContext);
+    const isAdmin = user.role === 'admin';
+    const [form, setForm] = useState({
+        nama: user.nama || '',
+        ic: user.ic || '',
+        noHp: user.noHp || '',
+        alamat: user.alamat || '',
+        tarikhLahir: user.tarikhLahir || '',
+        tarikhMula: user.tarikhMula || '',
+        kelas: user.kelas || '',
+        password: '',
+        passwordBaru: '',
+        passwordSahkan: ''
+    });
+    const [success, setSuccess] = useState('');
+    const [error, setError] = useState('');
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [pendingChanges, setPendingChanges] = useState(null);
+
+    useEffect(() => {
+        setForm({
+            nama: user.nama || '',
+            ic: user.ic || '',
+            noHp: user.noHp || '',
+            alamat: user.alamat || '',
+            tarikhLahir: user.tarikhLahir || '',
+            tarikhMula: user.tarikhMula || '',
+            kelas: user.kelas || '',
+            password: '',
+            passwordBaru: '',
+            passwordSahkan: ''
+        });
+    }, [user.id, user.ic]);
+
+    const handleSave = async () => {
+        if (!form.nama) return setError('Nama tidak boleh kosong');
+        if (!form.ic) return setError('No IC tidak boleh kosong');
+        if (form.passwordBaru && form.passwordBaru !== form.passwordSahkan) return setError('Kata laluan baru tidak sepadan');
+        
+        const changes = { 
+            nama: form.nama, 
+            ic: form.ic, 
+            noHp: form.noHp, 
+            alamat: form.alamat, 
+            tarikhLahir: form.tarikhLahir, 
+            tarikhMula: form.tarikhMula 
+        };
+        if (!isAdmin) changes.kelas = form.kelas;
+        if (form.passwordBaru) changes.password = form.passwordBaru;
+
+        if (form.ic !== user.ic) {
+            const { data: duplicate } = await _supabase
+                .from('staff')
+                .select('id')
+                .eq('ic', form.ic)
+                .neq('id', user.id)
+                .maybeSingle();
+
+            if (duplicate) return setError('No IC ini telah digunakan oleh pengguna lain');
+            
+            setPendingChanges(changes);
+            setShowConfirm(true);
+        } else {
+            const res = await updateUser(changes);
+            if (res.success) {
+                setSuccess('Profil berjaya dikemas kini!');
+                setError('');
+                setForm({...form, password: '', passwordBaru: '', passwordSahkan: ''});
+                setTimeout(() => setSuccess(''), 3000);
+            } else {
+                setError('Ralat: ' + res.message);
+            }
+        }
+    };
+
+    const confirmUpdate = async () => {
+        if (pendingChanges) {
+            const res = await updateUser(pendingChanges);
+            if (res.success) {
+                setSuccess('Profil berjaya dikemas kini! No IC baru akan digunakan untuk log masuk seterusnya.');
+                setError('');
+                setForm({...form, password: '', passwordBaru: '', passwordSahkan: ''});
+                setShowConfirm(false);
+                setPendingChanges(null);
+                setTimeout(() => setSuccess(''), 5000);
+            } else {
+                setError('Ralat: ' + res.message);
+                setShowConfirm(false);
+            }
+        }
+    };
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Profil Saya</h2>
+            {success && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg mb-4 text-sm fade-in">✓ {success}</div>}
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl">
+                <div className="flex items-center gap-4 mb-6 pb-6 border-b">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-800">{user.nama}</h3>
+                        <p className="text-sm text-gray-500">{isAdmin ? 'Administrator' : 'Guru'} • {user.ic}</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} />
+                    <Field label="No IC" value={form.ic} onChange={v => setForm({...form, ic: v})} />
+                    <Field label="No Telefon" value={form.noHp} onChange={v => setForm({...form, noHp: v})} />
+                    <Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} />
+                    <Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} />
+                    <Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} />
+                    {!isAdmin && <Field label="Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} />}
+                </div>
+                <div className="mt-6 pt-6 border-t">
+                    <h4 className="font-semibold text-gray-800 mb-4">Tukar Kata Laluan</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Field label="Kata Laluan Semasa" type="password" value={form.password} onChange={v => setForm({...form, password: v})} />
+                        <Field label="Kata Laluan Baru" type="password" value={form.passwordBaru} onChange={v => setForm({...form, passwordBaru: v})} />
+                        <div className="md:col-span-2"><Field label="Sahkan Kata Laluan Baru" type="password" value={form.passwordSahkan} onChange={v => setForm({...form, passwordSahkan: v})} /></div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">* Kosongkan jika tidak mahu tukar kata laluan</p>
+                </div>
+                <button onClick={handleSave} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors">Simpan Perubahan</button>
+            </div>
+            {showConfirm && (
+                <Modal title="Pengesahan Perubahan No IC" onClose={() => { setShowConfirm(false); setPendingChanges(null); }}>
+                    <div className="space-y-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <p className="text-amber-800 text-sm font-medium">⚠️ Amaran:</p>
+                            <p className="text-amber-700 text-sm mt-1">Anda akan menukar No IC. No IC baru akan digunakan untuk log masuk pada masa hadapan.</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                            <div className="flex justify-between text-sm"><span className="text-gray-500">No IC Lama:</span><span className="font-medium">{user.ic}</span></div>
+                            <div className="flex justify-between text-sm"><span className="text-gray-500">No IC Baru:</span><span className="font-medium text-emerald-600">{form.ic}</span></div>
+                        </div>
+                        <p className="text-sm text-gray-600">Adakah anda pasti ingin meneruskan?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => { setShowConfirm(false); setPendingChanges(null); }} className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
+                            <button onClick={confirmUpdate} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Ya, Teruskan</button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+// ==================== ADMIN DASHBOARD (SUPABASE VERSION) ====================
+const AdminDashboard = () => {
+    const [counts, setCounts] = useState({ staff: 0, students: 0, attendance: 0, logbooks: 0 });
+    const [students, setStudents] = useState([]);
+    const [staffs, setStaffs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Ambil jumlah Staff
+        const { count: staffCount } = await _supabase.from('staff').select('*', { count: 'exact', head: true });
+        
+        // 2. Ambil jumlah Murid
+        const { data: studentData, count: studentCount } = await _supabase.from('students').select('*', { count: 'exact' });
+        
+        // 3. Ambil jumlah Kehadiran Staff Hari Ini
+        const { count: attCount } = await _supabase.from('staffAttendance')
+            .select('*', { count: 'exact', head: true })
+            .eq('tarikh', today)
+            .eq('status', 'Hadir');
+
+        // 4. Ambil jumlah Logbook
+        const { count: logCount } = await _supabase.from('logbooks').select('*', { count: 'exact', head: true });
+
+        // 5. Ambil data Staff untuk senarai kelas
+        const { data: staffData } = await _supabase.from('staff').select('id, nama, kelas');
+
+        setCounts({
+            staff: staffCount || 0,
+            students: studentCount || 0,
+            attendance: attCount || 0,
+            logbooks: logCount || 0
+        });
+        if (studentData) setStudents(studentData);
+        if (staffData) setStaffs(staffData.filter(s => s.kelas)); // Ambil staff yang ada kelas sahaja
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
+
+    if (loading) return <div className="p-8 text-center text-gray-500">Memuatkan data dashboard...</div>;
+
+    const years = [4, 5, 6];
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard Admin</h2>
+            
+            {/* Kad Statistik */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {[
+                    { label: 'Jumlah Staff', count: counts.staff, color: 'blue', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+                    { label: 'Jumlah Murid', count: counts.students, color: 'emerald', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+                    { label: 'Staff Hadir Hari Ini', count: counts.attendance, color: 'amber', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+                    { label: 'Jumlah Logbook', count: counts.logbooks, color: 'purple', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+                ].map((item, idx) => (
+                    <div key={idx} className="bg-white rounded-xl p-6 shadow-sm card-hover border border-gray-100">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className={`w-12 h-12 bg-${item.color}-100 rounded-lg flex items-center justify-center`}>
+                                <svg className={`w-6 h-6 text-${item.color}-600`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+                            </div>
+                            <span className={`text-3xl font-bold text-${item.color}-600`}>{item.count}</span>
+                        </div>
+                        <p className="text-gray-500 text-sm">{item.label}</p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Statistik Murid */}
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Murid Mengikut Tahun</h3>
+                    <div className="space-y-4">
+                        {years.map(tahun => { 
+                            const count = students.filter(s => s.tahun === tahun).length; 
+                            const pct = students.length > 0 ? (count / students.length) * 100 : 0; 
+                            return (
+                                <div key={tahun}>
+                                    <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">{tahun} Tahun</span><span className="font-medium">{count} murid</span></div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-emerald-500 h-2.5 rounded-full transition-all" style={{ width: `${pct}%` }}></div></div>
+                                </div>
+                            ); 
+                        })}
+                    </div>
+                </div>
+
+                {/* Senarai Kelas */}
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Kelas & Guru</h3>
+                    <div className="space-y-3">
+                        {staffs.map(staff => { 
+                            const stuCount = students.filter(s => s.kelas === staff.kelas).length; 
+                            return (
+                                <div key={staff.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <div><p className="font-medium text-sm">{staff.kelas}</p><p className="text-xs text-gray-500">{staff.nama}</p></div>
+                                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{stuCount} murid</span>
+                                </div>
+                            ); 
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ==================== STAFF DASHBOARD (GURU) ====================
+const StaffDashboard = ({ user }) => {
+    const [stats, setStats] = useState({ studentCount: 0, attendanceCount: 0, logCount: 0 });
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStaffDashboardData = async () => {
+            setLoading(true);
+            const today = new Date().toISOString().split('T')[0];
+            
+            // 1. Ambil murid kelas guru ini
+            const { data: stuData } = await _supabase.from('students').select('*').eq('kelas', user.kelas);
+            const stuList = stuData || [];
+            const stuIds = stuList.map(s => s.id);
+
+            // 2. Kira kehadiran (Hadir)
+            let totalHadir = 0;
+            if (stuIds.length > 0) {
+                const { count } = await _supabase.from('studentAttendance')
+                    .select('*', { count: 'exact', head: true })
+                    .in('studentId', stuIds).eq('status', 'Hadir').eq('tarikh', today);
+                totalHadir = count || 0;
+            }
+
+            // 3. Kira logbook
+            const { count: logCount } = await _supabase.from('logbooks')
+                .select('*', { count: 'exact', head: true }).eq('staffId', user.id);
+
+            setStats({ studentCount: stuList.length, attendanceCount: totalHadir, logCount: logCount || 0 });
+            setStudents(stuList);
+            setLoading(false);
+        };
+        fetchStaffDashboardData();
+    }, [user.id, user.kelas]);
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard Guru</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-emerald-100 border-l-4 border-l-emerald-500">
+                    <p className="text-sm text-gray-500 mb-1">Murid Kelas Anda</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.studentCount}</p>
+                </div>
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-blue-100 border-l-4 border-l-blue-500">
+                    <p className="text-sm text-gray-500 mb-1">Hadir Hari Ini</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.attendanceCount}</p>
+                </div>
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-amber-100 border-l-4 border-l-amber-500">
+                    <p className="text-sm text-gray-500 mb-1">Jumlah Logbook</p>
+                    <p className="text-3xl font-bold text-gray-800">{stats.logCount}</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ==================== STAFF MANAGEMENT ====================
+const StaffManagement = ({ user }) => {
+    const [staffs, setStaffs] = useState([]); 
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [form, setForm] = useState({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', password: '' });
+    const fetchStaff = async () => {
+        const { data, error } = await _supabase
+            .from('staff')
+            .select('*')
+            .eq('role', 'staff'); 
+
+        if (error) {
+            console.error("Ralat ambil data:", error.message);
+        } else {
+            setStaffs(data || []); 
+        }
+    };
+
+    useEffect(() => {
+        fetchStaff();
+    }, []);
+
+    const addStaff = () => { setEditId(null); setForm({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', password: '' }); setShowForm(true); };
+    const editStaff = (s) => { setEditId(s.id); setForm(s); setShowForm(true); };
+
+    const saveStaff = async () => {
+        if (!form.nama || !form.ic || !form.kelas) return alert('Sila lengkapkan maklumat');
+        
+        if (editId) {
+            const { error } = await _supabase.from('staff').update(form).eq('id', editId);
+            if (error) alert('Ralat semasa kemas kini: ' + error.message);
+        } else {
+            const { error } = await _supabase.from('staff').insert([form]);
+            if (error) alert('Ralat semasa menambah: ' + error.message);
+        }
+        
+        setShowForm(false);
+        fetchStaff(); 
+    };
+
+    const deleteStaff = async (id) => { 
+        if (confirm('Adakah anda pasti?')) { 
+            const { error } = await _supabase.from('staff').delete().eq('id', id);
+            if (error) alert('Ralat padam: ' + error.message);
+            else fetchStaff(); 
+        } 
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Staff</h2><button onClick={addStaff} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Staff</button></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">No IC</th><th className="px-4 py-3 text-left font-medium text-gray-600">No HP</th><th className="px-4 py-3 text-left font-medium text-gray-600">Tarikh Mula</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
+                {staffs.map(s => (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.ic}</td><td className="px-4 py-3">{s.noHp}</td><td className="px-4 py-3">{s.tarikhMula}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStaff(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Edit</button><button onClick={() => deleteStaff(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Padam</button></div></td></tr>))}
+            </tbody></table></div>
+            {showForm && <Modal title={editId ? 'Edit Maklumat Staff' : 'Tambah Staff Baru'} onClose={() => setShowForm(false)}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Nama Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="No IC" value={form.ic} onChange={v => setForm({...form, ic: v})} /><Field label="No Telefon" value={form.noHp} onChange={v => setForm({...form, noHp: v})} /><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} /><Field label="Kata Laluan" type="password" value={form.password} onChange={v => setForm({...form, password: v})} /></div>
+                <button onClick={saveStaff} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+// ==================== STAFF ATTENDANCE (SUPABASE VERSION) ====================
+const StaffAttendance = () => {
+    const [staffs, setStaffs] = useState([]);
+    const [attData, setAttData] = useState([]);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [editMode, setEditMode] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    const fetchData = async () => {
+        setLoading(true);
+        // 1. Ambil senarai guru sahaja (Bukan admin)
+        const { data: staffData } = await _supabase.from('staff').select('*').eq('role', 'staff');
+        if (staffData) setStaffs(staffData);
+
+        // 2. Ambil semua rekod kehadiran untuk pengiraan jumlah
+        const { data: attendanceData } = await _supabase.from('staffAttendance').select('*');
+        if (attendanceData) setAttData(attendanceData);
+        
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const getDayStatus = (staffId) => { 
+        const entry = attData.find(a => a.staffId === staffId && a.tarikh === selectedDate); 
+        return entry ? entry.status : 'Hadir'; // Default 'Hadir' jika tiada rekod
+    };
+
+    const updateStatus = (staffId, status) => { 
+        setAttData(prev => { 
+            const newAttData = [...prev];
+            const idx = newAttData.findIndex(a => a.staffId === staffId && a.tarikh === selectedDate); 
+            if (idx !== -1) { 
+                newAttData[idx].status = status; 
+            } else {
+                // Tambah rekod sementara dalam skrin sebelum save ke Supabase
+                newAttData.push({ staffId, tarikh: selectedDate, status });
+            }
+            return newAttData; 
+        }); 
+    };
+
+    const saveAttendance = async () => { 
+        setLoading(true);
+        
+        // Asingkan data kepada dua kumpulan: Yang perlu di-UPDATE dan yang baru di-INSERT
+        const toUpdate = [];
+        const toInsert = [];
+
+        // KITA GUNA 'staffs' UNTUK BAHAGIAN GURU
+        staffs.forEach(s => {
+            // KITA GUNA 'staffId' BUKAN 'studentId'
+            const existing = attData.find(a => a.staffId === s.id && a.tarikh === selectedDate);
+            
+            if (existing && existing.id) {
+                // KUMPULAN 1: Sudah wujud di database (ada ID) -> UPDATE
+                toUpdate.push({
+                    id: existing.id,
+                    staffId: s.id,
+                    tarikh: selectedDate,
+                    status: existing.status
+                });
+            } else {
+                // KUMPULAN 2: Rekod baru untuk hari ini (tiada ID) -> INSERT
+                toInsert.push({
+                    staffId: s.id,
+                    tarikh: selectedDate,
+                    status: existing ? existing.status : 'Hadir' // Default Hadir
+                });
+            }
+        });
+
+        try {
+            // Hantar data kumpulan 1 (jika ada) ke jadual 'staffAttendance'
+            if (toUpdate.length > 0) {
+                const { error: errUpdate } = await _supabase.from('staffAttendance').upsert(toUpdate);
+                if (errUpdate) throw errUpdate;
+            }
+            
+            // Hantar data kumpulan 2 (jika ada) ke jadual 'staffAttendance'
+            if (toInsert.length > 0) {
+                const { error: errInsert } = await _supabase.from('staffAttendance').insert(toInsert);
+                if (errInsert) throw errInsert;
+            }
+
+            alert('Kehadiran staff berjaya disimpan!');
+            fetchData(); // Segar semula data dari awan
+            setEditMode(false);
+            
+        } catch (error) {
+            alert('Ralat simpan kehadiran: ' + error.message);
+        }
+        
+        setLoading(false);
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Kehadiran Staff</h2>
+                <div className="flex gap-2 items-center">
+                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+                    {!editMode && <button onClick={() => setEditMode(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">Edit Kehadiran</button>}
+                    {editMode && <button onClick={saveAttendance} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Simpan</button>}
+                </div>
+            </div>
+            
+            {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuatkan data kehadiran...</div>
+            ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th>
+                                <th className="px-4 py-3 text-center font-medium text-gray-600">Status</th>
+                                <th className="px-4 py-3 text-center font-medium text-gray-600">Jumlah Hadir</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {staffs.map(s => { 
+                                const status = getDayStatus(s.id); 
+                                const total = attData.filter(a => a.staffId === s.id && a.status === 'Hadir').length; 
+                                const color = status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : status === 'Cuti' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'; 
+                                return (
+                                    <tr key={s.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium">{s.nama}</td>
+                                        <td className="px-4 py-3">{s.kelas}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            {editMode ? (
+                                                <select value={status} onChange={e => updateStatus(s.id, e.target.value)} className="px-2 py-1 border rounded text-sm">
+                                                    <option>Hadir</option>
+                                                    <option>Cuti</option>
+                                                    <option>Tidak Hadir</option>
+                                                    <option>Sakit</option>
+                                                </select>
+                                            ) : (
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{status}</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <span className="font-medium">{total} hari</span>
+                                        </td>
+                                    </tr>
+                                ); 
+                            })}
+                            {staffs.length === 0 && (
+                                <tr><td colSpan="4" className="text-center py-4 text-gray-500">Sila masukkan maklumat staf di menu Pengurusan Staff terlebih dahulu.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== GRADE MANAGEMENT (SUPABASE VERSION) ====================
+const GradeManagement = () => {
+    const [grades, setGrades] = useState([]);
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [form, setForm] = useState({ gred: '', min: '', max: '' });
+    const [loading, setLoading] = useState(true);
+
+    // Ambil data gred dari Supabase
+    const fetchGrades = async () => {
+        setLoading(true);
+        const { data, error } = await _supabase
+            .from('grades')
+            .select('*')
+            .order('min', { ascending: false }); // Susun gred dari tinggi ke rendah
+        
+        if (data) setGrades(data);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchGrades();
+    }, []);
+
+    const addGrade = () => { setEditId(null); setForm({ gred: '', min: '', max: '' }); setShowForm(true); };
+    const editGrade = (g) => { setEditId(g.id); setForm(g); setShowForm(true); };
+
+    const saveGrade = async () => {
+        if (!form.gred || form.min === '' || form.max === '') return alert('Sila lengkapkan maklumat gred');
+        
+        const dataToSave = { 
+            gred: form.gred, 
+            min: parseInt(form.min), 
+            max: parseInt(form.max) 
+        };
+
+        if (editId) {
+            const { error } = await _supabase.from('grades').update(dataToSave).eq('id', editId);
+            if (error) alert('Ralat kemas kini gred: ' + error.message);
+        } else {
+            const { error } = await _supabase.from('grades').insert([dataToSave]);
+            if (error) alert('Ralat tambah gred: ' + error.message);
+        }
+        
+        setShowForm(false);
+        fetchGrades();
+    };
+
+    const deleteGrade = async (id) => { 
+        if (confirm('Adakah anda pasti mahu memadam gred ini?')) { 
+            const { error } = await _supabase.from('grades').delete().eq('id', id);
+            if (error) alert('Ralat padam gred: ' + error.message);
+            else fetchGrades(); 
+        } 
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Pengurusan Gred Markah</h2>
+                <button onClick={addGrade} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Gred</button>
+            </div>
+            
+            {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuatkan data gred...</div>
+            ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left font-medium text-gray-600">Gred</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-600">Markah Minimum</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-600">Markah Maksimum</th>
+                                <th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {grades.map(g => (
+                                <tr key={g.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">{g.gred}</span></td>
+                                    <td className="px-4 py-3">{g.min}</td>
+                                    <td className="px-4 py-3">{g.max}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <div className="flex justify-center gap-2">
+                                            <button onClick={() => editGrade(g)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button>
+                                            <button onClick={() => deleteGrade(g.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {grades.length === 0 && (
+                                <tr><td colSpan="4" className="text-center py-4 text-gray-500">Tiada gred ditetapkan. Klik "Tambah Gred" untuk mula.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {showForm && (
+                <Modal title={editId ? 'Edit Gred' : 'Tambah Gred Baru'} onClose={() => setShowForm(false)}>
+                    <div className="space-y-4">
+                        <Field label="Gred (Contoh: A, B, C)" value={form.gred} onChange={v => setForm({...form, gred: v})} />
+                        <Field label="Markah Minimum" type="number" value={form.min} onChange={v => setForm({...form, min: v})} />
+                        <Field label="Markah Maksimum" type="number" value={form.max} onChange={v => setForm({...form, max: v})} />
+                    </div>
+                    <button onClick={saveGrade} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+// ==================== LOGBOOK MONITOR (SUPABASE VERSION) ====================
+const LogbookMonitor = () => {
+    const [logbooks, setLogbooks] = useState([]);
+    const [staffs, setStaffs] = useState([]);
+    const [filterGuru, setFilterGuru] = useState('');
+    const [filterTarikh, setFilterTarikh] = useState('');
+    const [filterTahun, setFilterTahun] = useState('');
+    const [loading, setLoading] = useState(true);
+
+    const fetchData = async () => {
+        setLoading(true);
+        // 1. Ambil senarai semua guru (untuk tujuan tapisan/filter)
+        const { data: staffData } = await _supabase
+            .from('staff')
+            .select('id, nama, kelas')
+            .eq('role', 'staff');
+        
+        if (staffData) setStaffs(staffData);
+
+        // 2. Ambil semua rekod logbook dari awan
+        const { data: logData } = await _supabase
+            .from('logbooks')
+            .select('*')
+            .order('tarikh', { ascending: false }); // Susun dari yang terkini
+            
+        if (logData) setLogbooks(logData);
+        
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const filtered = logbooks.filter(l => { 
+        if (filterGuru && l.staffId !== filterGuru) return false; 
+        if (filterTarikh && l.tarikh !== filterTarikh) return false; 
+        if (filterTahun && l.tahun !== parseInt(filterTahun)) return false; 
+        return true; 
+    });
+
+    const yearOptions = []; 
+    const currentYr = new Date().getFullYear(); 
+    for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Monitoring Logbook Guru</h2>
+            
+            {/* Bahagian Tapisan (Filter) */}
+            <div className="flex gap-4 mb-6 flex-wrap">
+                <select value={filterGuru} onChange={e => setFilterGuru(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Guru</option>
+                    {staffs.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
+                </select>
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Tahun</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <input type="date" value={filterTarikh} onChange={e => setFilterTarikh(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+                {(filterGuru || filterTarikh || filterTahun) && (
+                    <button onClick={() => { setFilterGuru(''); setFilterTarikh(''); setFilterTahun(''); }} className="px-3 py-2 bg-gray-200 rounded-lg text-sm hover:bg-gray-300">Reset</button>
+                )}
+            </div>
+            
+            {/* Senarai Logbook */}
+            {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuatkan rekod logbook...</div>
+            ) : (
+                <div className="grid gap-4">
+                    {filtered.map(lb => { 
+                        // Padankan ID guru dengan nama guru
+                        const guru = staffs.find(s => s.id === lb.staffId); 
+                        return (
+                            <div key={lb.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                        <h3 className="font-semibold text-gray-800">{guru?.nama || 'Guru Tidak Diketahui'}</h3>
+                                        <p className="text-sm text-gray-500">{guru?.kelas || '-'}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{lb.tahun}</span>
+                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">{lb.tarikh}</span>
+                                    </div>
+                                </div>
+                                <p className="text-gray-700 mb-2"><span className="font-medium">Aktiviti:</span> {lb.aktiviti}</p>
+                                {lb.catatan && <p className="text-gray-600 text-sm"><span className="font-medium">Catatan:</span> {lb.catatan}</p>}
+                                {lb.gambar && <img src={lb.gambar} alt="Logbook Lampiran" className="mt-3 max-h-48 rounded-lg border border-gray-200 object-cover" />}
+                            </div>
+                        ); 
+                    })}
+                    {filtered.length === 0 && <p className="text-center text-gray-500 py-8">Tiada logbook ditemui mengikut tapisan anda.</p>}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== CALENDAR (SUPABASE VERSION + WEEKEND HIGHLIGHT) ====================
+const CalendarPage = ({ user }) => {
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [events, setEvents] = useState([]);
+    const [showForm, setShowForm] = useState(false);
+    const [selectedDay, setSelectedDay] = useState(null);
+    const [formData, setFormData] = useState({ title: '', type: 'aktiviti' });
+    const [loading, setLoading] = useState(true);
+    const isAdmin = user.role === 'admin';
+
+    const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+    const dayNames = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
+
+    const fetchEvents = async () => {
+        setLoading(true);
+        const { data, error } = await _supabase.from('calendarEvents').select('*');
+        if (data) setEvents(data);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchEvents();
+    }, []);
+
+    const getDaysInMonth = (y, m) => new Date(y, m, 0).getDate();
+    const getFirstDayOfMonth = (y, m) => new Date(y, m - 1, 1).getDay();
+    const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
+    const firstDay = getFirstDayOfMonth(selectedYear, selectedMonth);
+
+    const openDayForm = (day) => { 
+        if (!isAdmin) return; 
+        setSelectedDay(day); 
+        setFormData({ title: '', type: 'aktiviti' }); 
+        setShowForm(true); 
+    };
+
+    const saveEvent = async () => { 
+        if (!formData.title || !selectedDay) return; 
+        const tarikh = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`; 
+        const { error } = await _supabase.from('calendarEvents').insert([{ ...formData, tarikh }]);
+        if (error) alert('Ralat tambah acara: ' + error.message);
+        else { setShowForm(false); fetchEvents(); }
+    };
+
+    const deleteEvent = async (id) => { 
+        if (confirm('Padam acara ini?')) {
+            const { error } = await _supabase.from('calendarEvents').delete().eq('id', id);
+            if (error) alert('Ralat padam: ' + error.message);
+            else fetchEvents();
+        }
+    };
+
+    const getDayEvents = (day) => { 
+        const tarikh = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`; 
+        return events.filter(e => e.tarikh === tarikh); 
+    };
+
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+    const typeColors = { aktiviti: 'bg-blue-100 text-blue-700', cuti: 'bg-red-100 text-red-700', lain: 'bg-purple-100 text-purple-700' };
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Kalendar Pasti Al-Iqbal 2</h2>
+            <div className="flex gap-4 mb-6 items-center flex-wrap">
+                <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="px-3 py-2 border rounded-lg text-sm">
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="px-3 py-2 border rounded-lg text-sm">
+                    {monthNames.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                </select>
+            </div>
+
+            {loading ? (
+                <div className="text-center py-12 text-gray-500">Memuatkan...</div>
+            ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                        {dayNames.map(d => <div key={d} className={`text-center text-xs font-bold py-2 ${d === 'Ahd' || d === 'Sab' ? 'text-orange-500' : 'text-gray-500'}`}>{d}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} className="h-24 bg-gray-50 rounded opacity-50" />)}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1; 
+                            const dayEvts = getDayEvents(day);
+                            
+                            // Logik Kenalpasti Sabtu (6) dan Ahad (0)
+                            const dateObj = new Date(selectedYear, selectedMonth - 1, day);
+                            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                            
+                            return (
+                                <div key={day} 
+                                    className={`h-24 border border-gray-100 rounded p-1 overflow-hidden transition-colors ${isWeekend ? 'bg-yellow-50' : ''} ${isAdmin ? 'cursor-pointer hover:bg-emerald-50' : ''}`} 
+                                    onClick={() => openDayForm(day)}>
+                                    <div className={`text-xs font-bold mb-1 ${isWeekend ? 'text-yellow-700' : 'text-gray-700'}`}>
+                                        {day} {isWeekend && <span className="text-[9px] font-normal block">Cuti</span>}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        {dayEvts.map(ev => (
+                                            <div key={ev.id} className={`${typeColors[ev.type] || typeColors.lain} text-[9px] px-1 py-0.5 rounded truncate`} title={ev.title}>
+                                                {ev.title}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+            {/* Modal dikekalkan seperti asal */}
+            {showForm && (
+                <Modal title={`Aktiviti ${selectedDay}/${selectedMonth}/${selectedYear}`} onClose={() => setShowForm(false)}>
+                    <div className="space-y-4">
+                        <div className="mb-3">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Acara Sedia Ada:</p>
+                            {getDayEvents(selectedDay).map(ev => (
+                                <div key={ev.id} className="flex justify-between items-center bg-gray-50 p-2 rounded mb-1">
+                                    <span className={`${typeColors[ev.type]} px-2 py-1 rounded text-xs`}>{ev.title}</span>
+                                    <button onClick={() => deleteEvent(ev.id)} className="text-red-500 text-xs hover:text-red-700">Padam</button>
+                                </div>
+                            ))}
+                        </div>
+                        <hr />
+                        <Field label="Tajuk Acara Baru" value={formData.title} onChange={v => setFormData({...formData, title: v})} />
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Jenis</label>
+                            <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
+                                <option value="aktiviti">Aktiviti</option>
+                                <option value="cuti">Cuti Sekolah/Umum</option>
+                                <option value="lain">Lain-lain</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onClick={saveEvent} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Tambah</button>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+// ==================== STUDENT MANAGEMENT ====================
+const StudentManagement = ({ user }) => {
+    const [students, setStudents] = useState([]);
+    const [staffs, setStaffs] = useState([]);
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [filterKelas, setFilterKelas] = useState('');
+    const [filterTahun, setFilterTahun] = useState('');
+    const [filterSesi, setFilterSesi] = useState('');
+    const isAdmin = user.role === 'admin';
+    const currentYear = new Date().getFullYear();
+    const [form, setForm] = useState({ nama: '', tarikhLahir: '', tahun: 4, kelas: '', namaIbu: '', namaBapa: '', alamat: '', tahunSesi: currentYear });
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+
+    // FUNGSI BARU: Ambil data murid dan senarai guru dari Supabase
+    const fetchData = async () => {
+        const { data: studentData, error: err1 } = await _supabase.from('students').select('*');
+        if (studentData) setStudents(studentData);
+
+        const { data: staffData, error: err2 } = await _supabase.from('staff').select('*');
+        if (staffData) setStaffs(staffData);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const addStudent = () => { setEditId(null); setForm({ nama: '', tarikhLahir: '', tahun: 4, kelas: isAdmin ? '' : user.kelas, namaIbu: '', namaBapa: '', alamat: '', tahunSesi: currentYear }); setShowForm(true); };
+    const editStudent = (s) => { setEditId(s.id); setForm(s); setShowForm(true); };
+
+    const saveStudent = async () => {
+        if (!form.nama || !form.kelas || !form.tarikhLahir) return alert('Sila lengkapkan maklumat wajib (Nama, Kelas, Tarikh Lahir)');
+        
+        // Cari ID guru berdasarkan kelas yang dipilih
+        const guruKelas = staffs.find(s => s.kelas === form.kelas);
+        
+        const dataToSave = {
+            nama: form.nama,
+            tarikhLahir: form.tarikhLahir,
+            tahun: form.tahun,
+            kelas: form.kelas,
+            namaIbu: form.namaIbu,
+            namaBapa: form.namaBapa,
+            alamat: form.alamat,
+            tahunSesi: form.tahunSesi,
+            guruId: guruKelas ? guruKelas.id : null
+        };
+
+        if (editId) {
+            const { error } = await _supabase.from('students').update(dataToSave).eq('id', editId);
+            if (error) alert('Ralat semasa kemas kini: ' + error.message);
+        } else {
+            const { error } = await _supabase.from('students').insert([dataToSave]);
+            if (error) alert('Ralat semasa menambah: ' + error.message);
+        }
+        
+        setShowForm(false);
+        fetchData();
+    };
+
+    const deleteStudent = async (id) => { 
+        if (confirm('Adakah anda pasti mahu memadam rekod murid ini?')) { 
+            const { error } = await _supabase.from('students').delete().eq('id', id);
+            if (error) alert('Ralat padam: ' + error.message);
+            else fetchData(); 
+        } 
+    };
+
+    const filtered = students.filter(s => {
+        if (!isAdmin && s.kelas !== user.kelas) return false;
+        if (filterKelas && s.kelas !== filterKelas) return false;
+        if (filterTahun && s.tahun !== parseInt(filterTahun)) return false;
+        if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false;
+        return true;
+    });
+    
+    const allKelas = [...new Set(students.map(s => s.kelas))];
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Murid</h2><button onClick={addStudent} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Murid</button></div>
+            <div className="flex gap-4 mb-4 flex-wrap">
+                {isAdmin && <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Kelas</option>{allKelas.map(k => <option key={k} value={k}>{k}</option>)}</select>}
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Umur</option><option value="4">4 Tahun</option><option value="5">5 Tahun</option><option value="6">6 Tahun</option></select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Sesi</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                {(filterKelas || filterTahun || filterSesi) && <button onClick={() => { setFilterKelas(''); setFilterTahun(''); setFilterSesi(''); }} className="px-3 py-2 bg-gray-200 rounded-lg text-sm">Reset</button>}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Umur</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">Sesi</th><th className="px-4 py-3 text-left font-medium text-gray-600">Guru</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
+                {filtered.map(s => { const guru = staffs.find(st => st.id === s.guruId); return (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.tahun} thn</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.tahunSesi || currentYear}</td><td className="px-4 py-3 text-xs">{guru?.nama || '-'}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStudent(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button><button onClick={() => deleteStudent(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button></div></td></tr>); })}
+            </tbody></table></div>
+            {showForm && <Modal title={editId ? 'Edit Murid' : 'Tambah Murid Baru'} onClose={() => setShowForm(false)}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><div><label className="block text-sm font-medium text-gray-700 mb-1">Umur (Tahun)</label><select value={form.tahun} onChange={e => setForm({...form, tahun: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg"><option value={4}>4 Tahun</option><option value={5}>5 Tahun</option><option value={6}>6 Tahun</option></select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Tahun Sesi</label><select value={form.tahunSesi || currentYear} onChange={e => setForm({...form, tahunSesi: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg">{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select></div><Field label="Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="Nama Ibu" value={form.namaIbu} onChange={v => setForm({...form, namaIbu: v})} /><Field label="Nama Bapa" value={form.namaBapa} onChange={v => setForm({...form, namaBapa: v})} /><div className="md:col-span-2"><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /></div></div>
+                <button onClick={saveStudent} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+            </Modal>}
+        </div>
+    );
+};
+
+// ==================== STUDENT INFO PAGE (SUPABASE VERSION) ====================
+const StudentInfoPage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students, setStudents] = useState([]);
+    const [staffs, setStaffs] = useState([]);
+    const [attendance, setAttendance] = useState([]);
+    const [selectedId, setSelectedId] = useState('');
+    const [filterTahun, setFilterTahun] = useState('');
+    const [filterSesi, setFilterSesi] = useState('');
+    const [loading, setLoading] = useState(true);
+
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+
+    const fetchData = async () => {
+        setLoading(true);
+        // 1. Ambil data murid (ikut kelas jika guru biasa)
+        let query = _supabase.from('students').select('*');
+        if (!isAdmin) query = query.eq('kelas', user.kelas);
+        
+        const { data: stuData } = await query;
+        if (stuData) setStudents(stuData);
+
+        // 2. Ambil data staff (untuk nama guru kelas)
+        const { data: staffData } = await _supabase.from('staff').select('id, nama');
+        if (staffData) setStaffs(staffData);
+
+        // 3. Ambil rekod kehadiran (hanya yang berstatus 'Hadir')
+        const { data: attData } = await _supabase.from('studentAttendance').select('*').eq('status', 'Hadir');
+        if (attData) setAttendance(attData);
+        
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, [user.kelas]);
+
+    const filtered = students.filter(s => { 
+        if (filterTahun && s.tahun !== parseInt(filterTahun)) return false; 
+        if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false; 
+        return true; 
+    });
+
+    const selectedStudent = students.find(s => s.id === selectedId);
+    const getGuruName = (id) => staffs.find(st => st.id === id)?.nama || '-';
+    const getStudentAtt = (id) => attendance.filter(a => a.studentId === id).length;
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Maklumat Murid</h2>
+            
+            {/* Bahagian Tapisan */}
+            <div className="flex gap-4 mb-4 flex-wrap no-print">
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Umur</option>
+                    <option value="4">4 Tahun</option>
+                    <option value="5">5 Tahun</option>
+                    <option value="6">6 Tahun</option>
+                </select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Sesi</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Pilih Murid</option>
+                    {filtered.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}
+                </select>
+                {selectedId && <button onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm">🖨 Cetak Maklumat</button>}
+            </div>
+
+            {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuatkan maklumat murid...</div>
+            ) : selectedStudent ? (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 print-card max-w-3xl mx-auto">
+                    <div className="text-center mb-6 border-b pb-4">
+                        <h1 className="text-2xl font-bold text-gray-800 uppercase">Maklumat Profil Murid</h1>
+                        <p className="text-gray-500">Pasti Al-Iqbal 2 - Sesi {selectedStudent.tahunSesi || currentYear}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div><p className="text-xs text-gray-500 uppercase font-bold">Nama Penuh</p><p className="font-semibold text-gray-800 text-lg">{selectedStudent.nama}</p></div>
+                            <div><p className="text-xs text-gray-500 uppercase font-bold">Tarikh Lahir</p><p className="font-semibold text-gray-800">{selectedStudent.tarikhLahir}</p></div>
+                            <div><p className="text-xs text-gray-500 uppercase font-bold">Umur / Kelas</p><p className="font-semibold text-gray-800">{selectedStudent.tahun} Tahun ({selectedStudent.kelas})</p></div>
+                        </div>
+                        <div className="space-y-4">
+                            <div><p className="text-xs text-gray-500 uppercase font-bold">Guru Kelas</p><p className="font-semibold text-gray-800">{getGuruName(selectedStudent.guruId)}</p></div>
+                            <div><p className="text-xs text-gray-500 uppercase font-bold">Alamat Rumah</p><p className="font-semibold text-gray-800 text-sm">{selectedStudent.alamat || '-'}</p></div>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t">
+                        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            Maklumat Ibu Bapa / Penjaga
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                <p className="text-xs text-blue-600 font-bold uppercase">Nama Ibu</p>
+                                <p className="font-bold text-gray-800 mt-1">{selectedStudent.namaIbu || '-'}</p>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                                <p className="text-xs text-purple-600 font-bold uppercase">Nama Bapa</p>
+                                <p className="font-bold text-gray-800 mt-1">{selectedStudent.namaBapa || '-'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 p-4 bg-emerald-50 rounded-lg border border-emerald-100 flex justify-between items-center">
+                        <span className="text-emerald-800 font-medium">Rekod Kehadiran Keseluruhan:</span>
+                        <span className="text-2xl font-bold text-emerald-700">{getStudentAtt(selectedStudent.id)} Hari</span>
+                    </div>
+                    
+                    <div className="mt-12 text-center text-[10px] text-gray-400 italic hidden print:block">
+                        Dicetak pada: {new Date().toLocaleString('ms-MY')}
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-white rounded-xl p-12 text-center border border-dashed border-gray-300">
+                    <p className="text-gray-500">Sila pilih murid dari senarai di atas untuk memaparkan maklumat lengkap.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== STUDENT ATTENDANCE (UPDATED FOR ADMIN + FILTERS) ====================
+const StudentAttendance = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [allStudents, setAllStudents] = useState([]); 
+    const [attData, setAttData] = useState([]);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    
+    // Penapis Baharu
+    const [filterSesi, setFilterSesi] = useState(new Date().getFullYear().toString());
+    const [filterKelas, setFilterKelas] = useState(isAdmin ? '' : user.kelas);
+    
+    const [editMode, setEditMode] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+
+    const fetchData = async () => {
+        setLoading(true);
+        // 1. Ambil semua murid
+        const { data: stuData } = await _supabase.from('students').select('*');
+        if (stuData) setAllStudents(stuData);
+
+        // 2. Ambil semua kehadiran
+        const { data: attendanceData } = await _supabase.from('studentAttendance').select('*');
+        if (attendanceData) setAttData(attendanceData || []);
+        
+        setLoading(false);
+    };
+
+    useEffect(() => { fetchData(); }, []);
+
+    // Senarai Kelas Unik untuk Dropdown (Auto-generate dari data murid)
+    const senaraiKelas = [...new Set(allStudents.map(s => s.kelas).filter(Boolean))];
+
+    // Logik Penapisan Murid untuk paparan jadual
+    const filteredStudents = allStudents.filter(s => {
+        const matchSesi = filterSesi ? s.tahunSesi === parseInt(filterSesi) : true;
+        const matchKelas = filterKelas ? s.kelas === filterKelas : true;
+        const matchAccess = isAdmin || s.kelas === user.kelas;
+        return matchSesi && matchKelas && matchAccess;
+    });
+
+    const getStatus = (studentId) => { 
+        const entry = attData.find(a => a.studentId === studentId && a.tarikh === selectedDate); 
+        return entry ? entry.status : 'Hadir'; 
+    };
+
+    const updateStatus = (studentId, status) => { 
+        setAttData(prev => { 
+            const newAttData = [...prev];
+            const idx = newAttData.findIndex(a => a.studentId === studentId && a.tarikh === selectedDate); 
+            if (idx !== -1) { 
+                newAttData[idx].status = status; 
+            } else {
+                newAttData.push({ studentId, tarikh: selectedDate, status });
+            }
+            return newAttData; 
+        }); 
+    };
+
+    const saveAttendance = async () => { 
+        setLoading(true);
+        
+        // Asingkan data kepada dua kumpulan: Yang perlu di-UPDATE dan yang baru di-INSERT
+        const toUpdate = [];
+        const toInsert = [];
+
+        filteredStudents.forEach(s => {
+            const existing = attData.find(a => a.studentId === s.id && a.tarikh === selectedDate);
+            
+            if (existing && existing.id) {
+                // KUMPULAN 1: Sudah wujud di database (ada ID) -> UPDATE
+                toUpdate.push({
+                    id: existing.id,
+                    studentId: s.id,
+                    tarikh: selectedDate,
+                    status: existing.status
+                });
+            } else {
+                // KUMPULAN 2: Rekod baru untuk hari ini (tiada ID) -> INSERT
+                toInsert.push({
+                    studentId: s.id,
+                    tarikh: selectedDate,
+                    status: existing ? existing.status : 'Hadir' // Default Hadir
+                });
+            }
+        });
+
+        try {
+            // Hantar data kumpulan 1 (jika ada)
+            if (toUpdate.length > 0) {
+                const { error: errUpdate } = await _supabase.from('studentAttendance').upsert(toUpdate);
+                if (errUpdate) throw errUpdate;
+            }
+            
+            // Hantar data kumpulan 2 (jika ada)
+            if (toInsert.length > 0) {
+                const { error: errInsert } = await _supabase.from('studentAttendance').insert(toInsert);
+                if (errInsert) throw errInsert;
+            }
+
+            alert('Kehadiran murid berjaya disimpan!');
+            fetchData(); // Segar semula data dari awan
+            setEditMode(false);
+            
+        } catch (error) {
+            alert('Ralat simpan kehadiran: ' + error.message);
+        }
+        
+        setLoading(false);
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Kehadiran Murid {isAdmin ? '- Semua' : `(${user.kelas})`}</h2>
+                <div className="flex gap-2 items-center flex-wrap no-print">
+                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+                    {!editMode && <button onClick={() => setEditMode(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">Edit Kehadiran</button>}
+                    {editMode && <button onClick={saveAttendance} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Simpan</button>}
+                </div>
+            </div>
+
+            {/* Menu Tapisan Dropdown */}
+            <div className="flex gap-2 mb-6 flex-wrap no-print">
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Sesi</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                {isAdmin && (
+                    <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm min-w-[120px]">
+                        <option value="">Semua Kelas</option>
+                        {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                )}
+            </div>
+            
+            {loading ? <div className="text-center py-8 text-gray-500">Memuatkan data...</div> : (
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left">Nama</th>
+                                <th className="px-4 py-3 text-left">Kelas</th>
+                                <th className="px-4 py-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {filteredStudents.map(s => {
+                                const status = getStatus(s.id);
+                                return (
+                                    <tr key={s.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium">{s.nama}</td>
+                                        <td className="px-4 py-3 text-gray-500 text-xs">{s.kelas}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            {editMode ? (
+                                                <select value={status} onChange={e => updateStatus(s.id, e.target.value)} className="px-2 py-1 border rounded text-sm">
+                                                    <option>Hadir</option><option>Tidak Hadir</option><option>Cuti</option><option>Sakit</option>
+                                                </select>
+                                            ) : (
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {filteredStudents.length === 0 && <tr><td colSpan="3" className="text-center py-8 text-gray-400">Tiada rekod murid dijumpai.</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== LOGBOOK (SUPABASE VERSION) ====================
+const LogbookPage = ({ user }) => {
+    const [logbooks, setLogbooks] = useState([]);
+    const [selectedTahun, setSelectedTahun] = useState(new Date().getFullYear());
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [form, setForm] = useState({ 
+        tarikh: new Date().toISOString().split('T')[0], 
+        aktiviti: '', 
+        catatan: '', 
+        gambar: '' 
+    });
+
+    const currentYear = new Date().getFullYear();
+    const yearOptions = []; for (let y = currentYear; y <= 2050; y++) yearOptions.push(y);
+
+    const fetchLogs = async () => {
+        setLoading(true);
+        const { data, error } = await _supabase
+            .from('logbooks')
+            .select('*')
+            .eq('staffId', user.id)
+            .eq('tahun', selectedTahun)
+            .order('tarikh', { ascending: false });
+        
+        if (data) setLogbooks(data);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchLogs();
+    }, [selectedTahun, user.id]);
+
+    const addLogbook = () => { 
+        setEditId(null); 
+        setForm({ 
+            tarikh: new Date().toISOString().split('T')[0], 
+            aktiviti: '', 
+            catatan: '', 
+            gambar: '' 
+        }); 
+        setShowForm(true); 
+    };
+
+    const editLogbook = (lb) => { 
+        setEditId(lb.id); 
+        setForm(lb); 
+        setShowForm(true); 
+    };
+
+    const saveLogbook = async () => {
+        if (!form.tarikh || !form.aktiviti) return alert('Sila isi tarikh dan aktiviti');
+        
+        const dataToSave = { 
+            ...form, 
+            staffId: user.id, 
+            tahun: selectedTahun 
+        };
+
+        if (editId) {
+            const { error } = await _supabase.from('logbooks').update(dataToSave).eq('id', editId);
+            if (error) alert('Ralat kemas kini logbook: ' + error.message);
+        } else {
+            const { error } = await _supabase.from('logbooks').insert([dataToSave]);
+            if (error) alert('Ralat tambah logbook: ' + error.message);
+        }
+        
+        setShowForm(false);
+        fetchLogs();
+    };
+
+    const deleteLogbook = async (id) => { 
+        if (confirm('Padam logbook ini?')) { 
+            const { error } = await _supabase.from('logbooks').delete().eq('id', id);
+            if (error) alert('Ralat padam logbook: ' + error.message);
+            else fetchLogs(); 
+        } 
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Logbook Harian</h2>
+                <div className="flex gap-2 items-center">
+                    <select value={selectedTahun} onChange={e => setSelectedTahun(parseInt(e.target.value))} className="px-3 py-2 border rounded-lg text-sm">
+                        {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <button onClick={addLogbook} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Logbook</button>
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuatkan logbook...</div>
+            ) : (
+                <div className="grid gap-4">
+                    {logbooks.map(lb => (
+                        <div key={lb.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover">
+                            <div className="flex justify-between items-start mb-3">
+                                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{lb.tarikh}</span>
+                                <div className="flex gap-2">
+                                    <button onClick={() => editLogbook(lb)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button>
+                                    <button onClick={() => deleteLogbook(lb.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button>
+                                </div>
+                            </div>
+                            <p className="text-gray-800 font-medium mb-1">{lb.aktiviti}</p>
+                            {lb.catatan && <p className="text-gray-600 text-sm">{lb.catatan}</p>}
+                        </div>
+                    ))}
+                    {logbooks.length === 0 && <p className="text-center text-gray-500 py-8">Tiada logbook untuk tahun {selectedTahun}.</p>}
+                </div>
+            )}
+
+            {showForm && (
+                <Modal title={editId ? 'Edit Logbook' : 'Tambah Logbook'} onClose={() => setShowForm(false)}>
+                    <div className="space-y-4">
+                        <Field label="Tarikh" type="date" value={form.tarikh} onChange={v => setForm({...form, tarikh: v})} />
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Aktiviti Harian</label>
+                            <textarea value={form.aktiviti} onChange={e => setForm({...form, aktiviti: e.target.value})} rows={3} className="w-full px-3 py-2 border rounded-lg" placeholder="Terangkan aktiviti hari ini" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+                            <textarea value={form.catatan} onChange={e => setForm({...form, catatan: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" placeholder="Catatan tambahan (pilihan)" />
+                        </div>
+                        <Field label="URL Gambar (pilihan)" value={form.gambar} onChange={v => setForm({...form, gambar: v})} />
+                    </div>
+                    <button onClick={saveLogbook} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+// ==================== PERFORMANCE PAGE (UPDATED WITH DROPDOWN KELAS) ====================
+const PerformancePage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students, setStudents] = useState([]);
+    const [marks, setMarks] = useState([]);
+    const [grades, setGrades] = useState([]);
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState({ studentId: '', subjek: '', markah: '' });
+    
+    const [filterSesi, setFilterSesi] = useState(new Date().getFullYear().toString());
+    const [filterKelas, setFilterKelas] = useState('');
+    const [filterStudent, setFilterStudent] = useState('');
+    const [loading, setLoading] = useState(true);
+
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+
+    const fetchData = async () => {
+        setLoading(true);
+        const { data: stuData } = await _supabase.from('students').select('*');
+        if (stuData) setStudents(stuData);
+        const { data: markData } = await _supabase.from('studentMarks').select('*');
+        if (markData) setMarks(markData);
+        const { data: gradeData } = await _supabase.from('grades').select('*');
+        if (gradeData) setGrades(gradeData);
+        setLoading(false);
+    };
+
+    useEffect(() => { fetchData(); }, []);
+
+    const getGrade = (mark) => {
+        for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
+        return 'D';
+    };
+
+    // Ambil senarai nama kelas yang unik secara automatik
+    const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
+
+    const filteredStudents = students.filter(s => {
+        if (!isAdmin && s.kelas !== user.kelas) return false;
+        if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false;
+        if (filterKelas && s.kelas !== filterKelas) return false;
+        if (filterStudent && s.id !== filterStudent) return false;
+        return true;
+    });
+
+    const saveMark = async () => {
+        if (!form.studentId || !form.subjek || !form.markah) return alert('Lengkapkan maklumat');
+        const stu = students.find(s => s.id === form.studentId);
+        
+        const dataToSave = {
+            studentId: form.studentId,
+            subjek: form.subjek,
+            markah: parseInt(form.markah),
+            tahunSesi: stu?.tahunSesi || new Date().getFullYear()
+        };
+
+        const { error } = await _supabase.from('studentMarks').insert([dataToSave]);
+        if (error) alert('Ralat simpan markah: ' + error.message);
+        else { setShowForm(false); fetchData(); }
+    };
+
+    const deleteMark = async (id) => {
+        if (confirm('Padam markah ini?')) {
+            await _supabase.from('studentMarks').delete().eq('id', id);
+            fetchData();
+        }
+    };
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Prestasi Murid - Markah</h2>
+                <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">+ Tambah Markah</button>
+            </div>
+            
+            <div className="flex gap-2 mb-6 flex-wrap no-print">
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Sesi</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                {isAdmin && (
+                    <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm min-w-[120px]">
+                        <option value="">Semua Kelas</option>
+                        {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                )}
+                <select value={filterStudent} onChange={e => setFilterStudent(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Murid</option>
+                    {students.filter(s => (isAdmin || s.kelas === user.kelas) && (filterSesi ? s.tahunSesi === parseInt(filterSesi) : true) && (filterKelas ? s.kelas === filterKelas : true)).map(s => (
+                        <option key={s.id} value={s.id}>{s.nama}</option>
+                    ))}
+                </select>
+            </div>
+
+            {loading ? <div className="text-center py-8 text-gray-500">Memuatkan data...</div> : (
+                filteredStudents.map(s => {
+                    const sMarks = marks.filter(m => m.studentId === s.id);
+                    if (sMarks.length === 0 && filterStudent === s.id) return <p key={s.id} className="text-gray-500 text-center py-4">Tiada rekod markah.</p>;
+                    if (sMarks.length === 0) return null;
+                    const avg = Math.round(sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length);
+                    const avgGrade = getGrade(avg);
+                    return (
+                        <div key={s.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4 card-hover">
+                            <div className="flex justify-between items-start mb-4">
+                                <div><h3 className="font-bold text-gray-800">{s.nama}</h3><p className="text-sm text-gray-500">{s.kelas}</p></div>
+                                <div className="text-right"><span className="text-2xl font-bold">{avg}%</span><br/><span className="text-xs font-bold px-2 py-1 bg-gray-100 rounded">Gred: {avgGrade}</span></div>
+                            </div>
+                            <table className="w-full text-sm">
+                                <tbody className="divide-y divide-gray-100">
+                                    {sMarks.map(m => (
+                                        <tr key={m.id}><td className="py-2">{m.subjek}</td><td className="py-2 text-center font-bold">{m.markah}</td><td className="py-2 text-center text-blue-600">{getGrade(m.markah)}</td><td className="py-2 text-right"><button onClick={() => deleteMark(m.id)} className="text-red-500 text-xs">Padam</button></td></tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    );
+                })
+            )}
+
+            {showForm && (
+                <Modal title="Tambah Markah" onClose={() => setShowForm(false)}>
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium">Murid</label>
+                        <select value={form.studentId} onChange={e => setForm({...form, studentId: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                            <option value="">Pilih Murid</option>
+                            {students.filter(s => isAdmin || s.kelas === user.kelas).map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}
+                        </select>
+                        <Field label="Subjek" value={form.subjek} onChange={v => setForm({...form, subjek: v})} />
+                        <Field label="Markah" type="number" value={form.markah} onChange={v => setForm({...form, markah: v})} />
+                    </div>
+                    <button onClick={saveMark} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg">Simpan</button>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+// ==================== PERFORMANCE SUMMARY (UPDATED WITH DROPDOWN KELAS) ====================
+const PerformanceSummaryPage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students, setStudents] = useState([]);
+    const [marks, setMarks] = useState([]);
+    const [attendance, setAttendance] = useState([]);
+    const [grades, setGrades] = useState([]);
+    const [selectedId, setSelectedId] = useState('');
+    const [loading, setLoading] = useState(false);
+    
+    const [filterSesi, setFilterSesi] = useState(new Date().getFullYear().toString());
+    const [filterKelas, setFilterKelas] = useState(isAdmin ? '' : user.kelas);
+
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+
+    const fetchData = async () => {
+        setLoading(true);
+        const { data: stu } = await _supabase.from('students').select('*');
+        const { data: mk } = await _supabase.from('studentMarks').select('*');
+        const { data: att } = await _supabase.from('studentAttendance').select('*').eq('status', 'Hadir');
+        const { data: gd } = await _supabase.from('grades').select('*');
+        
+        if (stu) setStudents(stu);
+        if (mk) setMarks(mk);
+        if (att) setAttendance(att);
+        if (gd) setGrades(gd);
+        setLoading(false);
+    };
+
+    useEffect(() => { fetchData(); }, []);
+
+    const getGrade = (mark) => {
+        for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
+        return 'D';
+    };
+
+    // Ambil senarai nama kelas yang unik secara automatik
+    const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
+
+    const availableStudents = students.filter(s => {
+        const matchSesi = filterSesi ? s.tahunSesi === parseInt(filterSesi) : true;
+        const matchKelas = filterKelas ? s.kelas === filterKelas : true;
+        const matchAccess = isAdmin || s.kelas === user.kelas;
+        return matchSesi && matchKelas && matchAccess;
+    });
+
+    const selectedStudent = students.find(s => s.id === selectedId);
+    const sMarks = marks.filter(m => m.studentId === selectedId);
+    const sAttCount = attendance.filter(a => a.studentId === selectedId).length;
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Ringkasan Prestasi Murid</h2>
+            
+            <div className="flex gap-2 mb-6 no-print flex-wrap items-center">
+                <select value={filterSesi} onChange={e => {setFilterSesi(e.target.value); setSelectedId('');}} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Sesi</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                {isAdmin && (
+                    <select value={filterKelas} onChange={e => {setFilterKelas(e.target.value); setSelectedId('');}} className="px-3 py-2 border rounded-lg text-sm min-w-[120px]">
+                        <option value="">Semua Kelas</option>
+                        {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                )}
+                <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="px-3 py-2 border rounded-lg text-sm flex-1 max-w-xs">
+                    <option value="">Pilih Murid</option>
+                    {availableStudents.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}
+                </select>
+                {selectedId && <button onClick={() => window.print()} className="ml-auto px-4 py-2 bg-gray-700 text-white rounded-lg text-sm">🖨 Cetak Slip</button>}
+            </div>
+
+            {loading ? <div className="text-center py-8 text-gray-500">Memuatkan rekod...</div> : 
+             selectedStudent ? (
+                <div className="bg-white p-8 rounded-xl border border-gray-200 print-card max-w-3xl mx-auto">
+                    <div className="text-center border-b pb-4 mb-6">
+                        <h1 className="text-xl font-bold">SLIP PRESTASI MURID PASTI AL-IQBAL 2</h1>
+                        <p className="text-sm text-gray-500">Sesi: {selectedStudent.tahunSesi}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                        <div><p className="text-gray-500">Nama Murid:</p><p className="font-bold">{selectedStudent.nama}</p></div>
+                        <div><p className="text-gray-500">Kelas:</p><p className="font-bold">{selectedStudent.kelas}</p></div>
+                        <div><p className="text-gray-500">Kehadiran:</p><p className="font-bold text-emerald-600">{sAttCount} Hari</p></div>
+                    </div>
+                    <table className="w-full text-sm border-collapse">
+                        <thead><tr className="bg-gray-100"><th className="border p-2 text-left">Subjek</th><th className="border p-2 text-center">Markah</th><th className="border p-2 text-center">Gred</th></tr></thead>
+                        <tbody>
+                            {sMarks.map(m => (
+                                <tr key={m.id}><td className="border p-2">{m.subjek}</td><td className="border p-2 text-center font-bold">{m.markah}</td><td className="border p-2 text-center">{getGrade(m.markah)}</td></tr>
+                            ))}
+                            {sMarks.length === 0 && <tr><td colSpan="3" className="border p-4 text-center text-gray-500">Tiada markah direkodkan.</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            ) : <p className="text-center text-gray-400">Sila pilih murid untuk melihat ringkasan.</p>}
+        </div>
+    );
+};
+
+// ==================== PERFORMANCE BY YEAR (UPDATED WITH DROPDOWN KELAS) ====================
+const PerformanceByYearPage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [students, setStudents] = useState([]);
+    const [marks, setMarks] = useState([]);
+    const [grades, setGrades] = useState([]);
+    const [loading, setLoading] = useState(true);
+    
+    const [filterTahun, setFilterTahun] = useState('6');
+    const [filterSesi, setFilterSesi] = useState(new Date().getFullYear().toString());
+    const [filterKelas, setFilterKelas] = useState('');
+
+    const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
+
+    useEffect(() => {
+        const fetchAll = async () => {
+            setLoading(true);
+            const { data: stu } = await _supabase.from('students').select('*');
+            const { data: mk } = await _supabase.from('studentMarks').select('*');
+            const { data: gd } = await _supabase.from('grades').select('*');
+            if (stu) setStudents(stu);
+            if (mk) setMarks(mk);
+            if (gd) setGrades(gd);
+            setLoading(false);
+        };
+        fetchAll();
+    }, []);
+
+    const getGrade = (mark) => {
+        for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
+        return 'D';
+    };
+
+    // Ambil senarai nama kelas yang unik secara automatik
+    const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
+
+    const filtered = students.filter(s => {
+        const matchUmur = s.tahun === parseInt(filterTahun);
+        const matchSesi = filterSesi ? s.tahunSesi === parseInt(filterSesi) : true;
+        const matchKelas = filterKelas ? s.kelas === filterKelas : true;
+        const matchAccess = isAdmin || s.kelas === user.kelas;
+        return matchUmur && matchSesi && matchKelas && matchAccess;
+    });
+
+    return (
+        <div className="fade-in">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Analisis Prestasi Keseluruhan</h2>
+            
+            <div className="flex gap-2 mb-6 flex-wrap">
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="4">Umur 4 Tahun</option><option value="5">Umur 5 Tahun</option><option value="6">Umur 6 Tahun</option>
+                </select>
+                <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Semua Sesi</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                {isAdmin && (
+                    <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm min-w-[120px]">
+                        <option value="">Semua Kelas</option>
+                        {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                )}
+            </div>
+
+            {loading ? <div className="text-center py-8 text-gray-500">Memuatkan data prestasi...</div> : (
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="p-3 text-left">Nama Murid</th>
+                                <th className="p-3 text-left">Kelas</th>
+                                <th className="p-3 text-center">Purata Markah</th>
+                                <th className="p-3 text-center">Gred Keseluruhan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.map(s => {
+                                const sm = marks.filter(m => m.studentId === s.id);
+                                const avg = sm.length ? Math.round(sm.reduce((a,b) => a+b.markah, 0)/sm.length) : 0;
+                                return (
+                                    <tr key={s.id} className="border-t hover:bg-gray-50">
+                                        <td className="p-3 font-medium">{s.nama}</td>
+                                        <td className="p-3">{s.kelas}</td>
+                                        <td className="p-3 text-center">{sm.length ? `${avg}%` : '-'}</td>
+                                        <td className="p-3 text-center">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${sm.length ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                {sm.length ? getGrade(avg) : 'Tiada'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {filtered.length === 0 && (
+                                <tr><td colSpan="4" className="text-center py-6 text-gray-500">Tiada murid ditemui untuk tapisan ini.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ==================== LOGIN PAGE ====================
+const LoginPage = () => {
+    const { login } = React.useContext(AuthContext);
+    const [ic, setIc] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        const res = await login(ic, password);
+        if (!res.success) setError(res.message);
+        setLoading(false);
+    };
+
+    return (
+        <div className="min-h-screen bg-[#065f46] flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md fade-in">
+                <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <span className="text-3xl">🏢</span>
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-800">Sistem Pasti Al-Iqbal 2</h1>
+                    <p className="text-gray-500 mt-1">Sila log masuk untuk meneruskan</p>
+                </div>
+
+                {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-6 text-center border border-red-100">{error}</div>}
+
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">No Kad Pengenalan / IC</label>
+                        <input 
+                            type="text" 
+                            value={ic} 
+                            onChange={(e) => setIc(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                            placeholder="Contoh: 011"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Kata Laluan</label>
+                        <input 
+                            type="password" 
+                            value={password} 
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                            placeholder="••••••••"
+                            required
+                        />
+                    </div>
+                    <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-lg transition-all shadow-md"
+                    >
+                        {loading ? 'Log Masuk...' : 'Log Masuk'}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// ==================== MAIN APP (RESPONSIVE) ====================
+const App = () => {
+    const { user, logout } = React.useContext(AuthContext);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State baharu untuk menu telefon
+    
+    if (!user) return <LoginPage />;
+    
+    const isAdmin = user.role === 'admin';
+
+    // Senarai Menu Navigasi
+    const menuItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: '📊', show: true },
+        { id: 'profil', label: 'Profil Saya', icon: '👤', show: true },
+        { id: 'staff', label: 'Pengurusan Staff', icon: '👥', show: isAdmin },
+        { id: 'att_staff', label: 'Kehadiran Staff', icon: '✅', show: isAdmin },
+        { id: 'gred', label: 'Pengurusan Gred', icon: '⚙️', show: isAdmin },
+        { id: 'logbook', label: 'Logbook Harian', icon: '📖', show: !isAdmin },
+        { id: 'logbook_monitor', label: 'Logbook Guru', icon: '📖', show: isAdmin },
+        { id: 'kalendar', label: 'Kalendar', icon: '📅', show: true },
+        { id: 'murid', label: 'Pengurusan Murid', icon: '🎓', show: true },
+        { id: 'info_murid', label: 'Maklumat Murid', icon: 'ℹ️', show: true },
+        { id: 'att_murid', label: 'Kehadiran Murid', icon: '📝', show: true },
+        { id: 'markah', label: 'Prestasi Murid', icon: '📈', show: true },
+        { id: 'slip', label: 'Ringkasan Prestasi', icon: '📑', show: true },
+        { id: 'analisis', label: 'Prestasi Mengikut Tahun', icon: '📊', show: true },
+    ];
+
+    // Pemanggil Komponen
+    const renderContent = () => {
+        switch(activeTab) {
+            case 'dashboard': return isAdmin ? <AdminDashboard user={user} /> : <StaffDashboard user={user} />;
+            case 'profil': return <ProfilePage user={user} />;
+            case 'staff': return <StaffManagement />;
+            case 'att_staff': return <StaffAttendance />;
+            case 'gred': return <GradeManagement />;
+            case 'kalendar': return <CalendarPage user={user} />;
+            case 'murid': return <StudentManagement user={user} />;
+            case 'info_murid': return <StudentInfoPage user={user} />;
+            case 'att_murid': return <StudentAttendance user={user} />;
+            case 'logbook': return <LogbookPage user={user} />;
+            case 'logbook_monitor': return <LogbookMonitor />;
+            case 'markah': return <PerformancePage user={user} />;
+            case 'slip': return <PerformanceSummaryPage user={user} />;
+            case 'analisis': return <PerformanceByYearPage user={user} />;
+            default: return <ProfilePage user={user} />;
+        }
+    };
+
+    return (
+        <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
+            
+            {/* 1. OVERLAY GELAP (Hanya muncul di Telefon/Tablet bila menu dibuka) */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden transition-opacity"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+
+            {/* 2. SIDEBAR (Auto-Sembunyi pada skrin kecil) */}
+            <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#065f46] text-white flex flex-col shadow-xl transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                
+                {/* Header Sidebar */}
+                <div className="p-6 flex items-center justify-between border-b border-emerald-800">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#065f46] font-bold text-xl">🏢</div>
+                        <div>
+                            <h1 className="font-bold text-xl tracking-wider">Pasti Al-Iqbal 2</h1>
+                            <p className="text-xs text-emerald-300">{isAdmin ? 'Administrator' : 'Guru Kelas'}</p>
+                        </div>
+                    </div>
+                    {/* Butang Tutup (X) untuk telefon */}
+                    <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-emerald-300 hover:text-white">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                {/* Senarai Menu Navigasi */}
+                <div className="flex-1 overflow-y-auto py-4 custom-scrollbar">
+                    <nav className="space-y-1 px-3">
+                        {menuItems.filter(m => m.show).map(menu => (
+                            <button 
+                                key={menu.id} 
+                                onClick={() => { setActiveTab(menu.id); setIsSidebarOpen(false); }} 
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === menu.id ? 'bg-emerald-800 border border-emerald-700 shadow-inner text-white' : 'text-emerald-100 hover:bg-emerald-800/50 hover:text-white'}`}
+                            >
+                                <span className="text-lg">{menu.icon}</span>
+                                <span className="truncate">{menu.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+
+                {/* Profil & Log Keluar di bawah Sidebar */}
+                <div className="p-4 border-t border-emerald-800 bg-[#054d38]">
+                    <div className="flex items-center gap-3 px-2 py-2 mb-3">
+                        <div className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center font-bold text-white shadow-sm">👤</div>
+                        <div className="text-left overflow-hidden">
+                            <p className="text-sm font-medium truncate text-white">{user.nama}</p>
+                            <p className="text-xs text-emerald-400 truncate">{user.ic}</p>
+                        </div>
+                    </div>
+                    <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-300 hover:bg-red-500 hover:text-white transition-colors border border-transparent hover:border-red-400">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                        Log Keluar
+                    </button>
+                </div>
+            </div>
+
+            {/* 3. MAIN CONTENT (KAWASAN KANAN) */}
+            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                
+                {/* Header Atas (HANYA MUNCUL DI TELEFON/TABLET) */}
+                <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-[#065f46] rounded flex items-center justify-center text-white font-bold text-sm">🏢</div>
+                        <span className="font-bold text-gray-800 tracking-wide">Sistem Pasti Al-Iqbal 2</span>
+                    </div>
+                    <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 hover:text-[#065f46] focus:outline-none p-1 rounded-md hover:bg-gray-100 transition-colors">
+                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    </button>
+                </div>
+
+                {/* Kandungan Halaman Sebenar (Yang Boleh Skrol) */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50">
+                    <div className="max-w-7xl mx-auto pb-10">
+                        {renderContent()}
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    );
+};
+
+// ==================== INITIALIZE APP ====================
+ReactDOM.createRoot(document.getElementById('root')).render(
+    <AuthProvider>
+        <App />
+    </AuthProvider>
+);
+</script>
+</body>
+</html>
