@@ -393,6 +393,7 @@ const AdminDashboard = () => {
     const [students, setStudents] = useState([]);
     const [staffs, setStaffs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [stuAtt, setStuAtt] = useState([]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -415,6 +416,11 @@ const AdminDashboard = () => {
 
         // 5. Ambil data Staff untuk senarai kelas
         const { data: staffData } = await _supabase.from('staff').select('id, nama, kelas');
+        // Ambil data kehadiran murid hari ini
+        const { data: studentAttData } = await _supabase.from('studentAttendance')
+            .select('studentId')
+            .eq('tarikh', today)
+            .eq('status', 'Hadir');
 
         setCounts({
             staff: staffCount || 0,
@@ -423,7 +429,8 @@ const AdminDashboard = () => {
             logbooks: logCount || 0
         });
         if (studentData) setStudents(studentData);
-        if (staffData) setStaffs(staffData.filter(s => s.kelas)); // Ambil staff yang ada kelas sahaja
+        if (staffData) setStaffs(staffData.filter(s => s.kelas));
+        if (studentAttData) setStuAtt(studentAttData); // Ambil staff yang ada kelas sahaja
         setLoading(false);
     };
 
@@ -461,32 +468,71 @@ const AdminDashboard = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Statistik Murid */}
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Murid Mengikut Tahun</h3>
-                    <div className="space-y-4">
-                        {years.map(tahun => { 
-                            const count = students.filter(s => s.tahun === tahun).length; 
-                            const pct = students.length > 0 ? (count / students.length) * 100 : 0; 
-                            return (
-                                <div key={tahun}>
-                                    <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">{tahun} Tahun</span><span className="font-medium">{count} murid</span></div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-emerald-500 h-2.5 rounded-full transition-all" style={{ width: `${pct}%` }}></div></div>
-                                </div>
-                            ); 
-                        })}
+                {/* Statistik Murid Semasa */}
+<div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        📊 Murid Mengikut Tahun Semasa ({new Date().getFullYear()})
+    </h3>
+    <div className="space-y-6">
+        {[4, 5, 6].map(age => { 
+            const currentYear = new Date().getFullYear();
+            // Menapis murid yang hanya berdaftar pada tahun sesi semasa
+            const studentsThisAge = students.filter(s => s.tahun === age && s.tahunSesi === currentYear);
+            
+            // Mengira pecahan murid mengikut nama kelas
+            const classMap = {};
+            studentsThisAge.forEach(s => {
+                classMap[s.kelas] = (classMap[s.kelas] || 0) + 1;
+            });
+
+            return (
+                <div key={age} className="border-b border-gray-50 pb-4 last:border-0">
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="font-bold text-emerald-700 text-sm">{age} Tahun</span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                            Jumlah: {studentsThisAge.length}
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(classMap).map(([kelas, count]) => (
+                            <div key={kelas} className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100">
+                                <span className="text-[11px] text-gray-500">{kelas}</span>
+                                <span className="text-[11px] font-bold text-gray-700">{count}</span>
+                            </div>
+                        ))}
+                        {studentsThisAge.length === 0 && <p className="text-[10px] text-gray-400 italic">Tiada data murid.</p>}
                     </div>
                 </div>
-
+            ); 
+        })}
+    </div>
+</div>
                 {/* Senarai Kelas */}
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Kelas & Guru</h3>
                     <div className="space-y-3">
                         {staffs.map(staff => { 
-                            const stuCount = students.filter(s => s.kelas === staff.kelas).length; 
+                            const currentYear = new Date().getFullYear();
+                            
+                            // 1. Cari murid dalam kelas ini UNTUK TAHUN SEMASA SAHAJA
+                            const classStudents = students.filter(s => s.kelas === staff.kelas && s.tahunSesi === currentYear);
+                            const stuCount = classStudents.length; 
+                            
+                            // 2. Kira berapa orang yang hadir hari ini
+                            const classStudentIds = classStudents.map(s => s.id);
+                            const hadirCount = stuAtt.filter(a => classStudentIds.includes(a.studentId)).length;
+
                             return (
-                                <div key={staff.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div><p className="font-medium text-sm">{staff.kelas}</p><p className="text-xs text-gray-500">{staff.nama}</p></div>
-                                    <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-medium">{stuCount} murid</span>
+                                <div key={staff.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-emerald-50 transition-colors">
+                                    <div>
+                                        <p className="font-bold text-gray-700 text-sm">{staff.kelas}</p>
+                                        <p className="text-xs text-gray-500">Cikgu {staff.nama}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${hadirCount === stuCount && stuCount > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            Hadir: {hadirCount} / {stuCount}
+                                        </span>
+                                    </div>
                                 </div>
                             ); 
                         })}
@@ -500,55 +546,152 @@ const AdminDashboard = () => {
 // ==================== STAFF DASHBOARD (GURU) ====================
 const StaffDashboard = ({ user }) => {
     const [stats, setStats] = useState({ studentCount: 0, attendanceCount: 0, logCount: 0 });
-    const [students, setStudents] = useState([]);
+    const [students, setStudents] = useState([]); // Simpan SEMUA murid tahun semasa
+    const [staffs, setStaffs] = useState([]); // Simpan senarai guru
+    const [stuAtt, setStuAtt] = useState([]); // Simpan rekod kehadiran semua
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchStaffDashboardData = async () => {
             setLoading(true);
             const today = new Date().toISOString().split('T')[0];
+            const currentYear = new Date().getFullYear();
             
-            // 1. Ambil murid kelas guru ini
-            const { data: stuData } = await _supabase.from('students').select('*').eq('kelas', user.kelas);
-            const stuList = stuData || [];
-            const stuIds = stuList.map(s => s.id);
+            // 1. Ambil SEMUA murid tahun semasa
+            const { data: allStuData } = await _supabase.from('students')
+                .select('*')
+                .eq('tahunSesi', currentYear);
+            const allStudents = allStuData || [];
 
-            // 2. Kira kehadiran (Hadir)
-            let totalHadir = 0;
-            if (stuIds.length > 0) {
-                const { count } = await _supabase.from('studentAttendance')
-                    .select('*', { count: 'exact', head: true })
-                    .in('studentId', stuIds).eq('status', 'Hadir').eq('tarikh', today);
-                totalHadir = count || 0;
-            }
+            // 2. Tapis murid untuk kelas guru ini sahaja (untuk kad statistik atas)
+            const myStudents = allStudents.filter(s => s.kelas === user.kelas);
+            const myStuIds = myStudents.map(s => s.id);
 
-            // 3. Kira logbook
+            // 3. Ambil SEMUA kehadiran (Hadir) untuk hari ini
+            const { data: allAttData } = await _supabase.from('studentAttendance')
+                .select('*')
+                .eq('tarikh', today)
+                .eq('status', 'Hadir');
+            const allAttendance = allAttData || [];
+
+            // 4. Kira kehadiran kelas guru ini
+            const myAttendance = allAttendance.filter(a => myStuIds.includes(a.studentId)).length;
+
+            // 5. Ambil data semua staff (untuk senarai Kelas & Guru)
+            const { data: staffData } = await _supabase.from('staff').select('id, nama, kelas').eq('role', 'staff');
+
+            // 6. Kira jumlah logbook guru ini
             const { count: logCount } = await _supabase.from('logbooks')
                 .select('*', { count: 'exact', head: true }).eq('staffId', user.id);
 
-            setStats({ studentCount: stuList.length, attendanceCount: totalHadir, logCount: logCount || 0 });
-            setStudents(stuList);
+            setStats({ studentCount: myStudents.length, attendanceCount: myAttendance, logCount: logCount || 0 });
+            setStudents(allStudents);
+            setStaffs(staffData || []);
+            setStuAtt(allAttendance);
             setLoading(false);
         };
         fetchStaffDashboardData();
     }, [user.id, user.kelas]);
 
+    if (loading) return <div className="p-8 text-center text-gray-500">Memuatkan data dashboard...</div>;
+
     return (
         <div className="fade-in">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard Guru</h2>
+            
+            {/* Kad Statistik Atas */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-emerald-100 border-l-4 border-l-emerald-500">
-                    <p className="text-sm text-gray-500 mb-1">Murid Kelas Anda</p>
+                    <p className="text-sm text-gray-500 mb-1">Murid Kelas Anda ({user.kelas})</p>
                     <p className="text-3xl font-bold text-gray-800">{stats.studentCount}</p>
                 </div>
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-blue-100 border-l-4 border-l-blue-500">
                     <p className="text-sm text-gray-500 mb-1">Hadir Hari Ini</p>
-                    <p className="text-3xl font-bold text-gray-800">{stats.attendanceCount}</p>
+                    <p className="text-3xl font-bold text-gray-800">
+                        {stats.attendanceCount} <span className="text-lg text-gray-400 font-medium">/ {stats.studentCount}</span>
+                    </p>
                 </div>
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-amber-100 border-l-4 border-l-amber-500">
-                    <p className="text-sm text-gray-500 mb-1">Jumlah Logbook</p>
+                    <p className="text-sm text-gray-500 mb-1">Jumlah Logbook Anda</p>
                     <p className="text-3xl font-bold text-gray-800">{stats.logCount}</p>
                 </div>
+            </div>
+
+            {/* Bahagian Baharu: Statistik Keseluruhan (Sama macam Admin) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Statistik Murid Semasa */}
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        📊 Murid Mengikut Tahun Semasa ({new Date().getFullYear()})
+                    </h3>
+                    <div className="space-y-6">
+                        {[4, 5, 6].map(age => { 
+                            const currentYear = new Date().getFullYear();
+                            const studentsThisAge = students.filter(s => s.tahun === age && s.tahunSesi === currentYear);
+                            
+                            const classMap = {};
+                            studentsThisAge.forEach(s => {
+                                classMap[s.kelas] = (classMap[s.kelas] || 0) + 1;
+                            });
+
+                            return (
+                                <div key={age} className="border-b border-gray-50 pb-4 last:border-0">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <span className="font-bold text-emerald-700 text-sm">{age} Tahun</span>
+                                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                                            Jumlah: {studentsThisAge.length}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {Object.entries(classMap).map(([kelas, count]) => (
+                                            <div key={kelas} className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100">
+                                                <span className="text-[11px] text-gray-500">{kelas}</span>
+                                                <span className="text-[11px] font-bold text-gray-700">{count}</span>
+                                            </div>
+                                        ))}
+                                        {studentsThisAge.length === 0 && <p className="text-[10px] text-gray-400 italic">Tiada data murid.</p>}
+                                    </div>
+                                </div>
+                            ); 
+                        })}
+                    </div>
+                </div>
+
+                {/* Senarai Kelas & Guru */}
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Kelas & Guru</h3>
+                    <div className="space-y-3">
+                        {staffs.map(staff => { 
+                            if (!staff.kelas) return null; // Abai jika staf tiada kelas
+                            const currentYear = new Date().getFullYear();
+                            
+                            const classStudents = students.filter(s => s.kelas === staff.kelas && s.tahunSesi === currentYear);
+                            const stuCount = classStudents.length; 
+                            
+                            const classStudentIds = classStudents.map(s => s.id);
+                            const hadirCount = stuAtt.filter(a => classStudentIds.includes(a.studentId)).length;
+
+                            return (
+                                <div key={staff.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-emerald-50 transition-colors">
+                                    <div>
+                                        <p className="font-bold text-gray-700 text-sm">
+                                            {staff.kelas} 
+                                            {staff.kelas === user.kelas && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded ml-2 font-bold uppercase tracking-wider">Kelas Anda</span>}
+                                        </p>
+                                        <p className="text-xs text-gray-500">Cikgu {staff.nama}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${hadirCount === stuCount && stuCount > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            Hadir: {hadirCount} / {stuCount}
+                                        </span>
+                                    </div>
+                                </div>
+                            ); 
+                        })}
+                    </div>
+                </div>
+
             </div>
         </div>
     );
@@ -606,7 +749,7 @@ const StaffManagement = ({ user }) => {
     return (
         <div className="fade-in">
             <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Staff</h2><button onClick={addStaff} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Staff</button></div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">No IC</th><th className="px-4 py-3 text-left font-medium text-gray-600">No HP</th><th className="px-4 py-3 text-left font-medium text-gray-600">Tarikh Mula</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto"><table className="w-full text-sm whitespace-nowrap"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">No IC</th><th className="px-4 py-3 text-left font-medium text-gray-600">No HP</th><th className="px-4 py-3 text-left font-medium text-gray-600">Tarikh Mula</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
                 {staffs.map(s => (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.ic}</td><td className="px-4 py-3">{s.noHp}</td><td className="px-4 py-3">{s.tarikhMula}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStaff(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Edit</button><button onClick={() => deleteStaff(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Padam</button></div></td></tr>))}
             </tbody></table></div>
             {showForm && <Modal title={editId ? 'Edit Maklumat Staff' : 'Tambah Staff Baru'} onClose={() => setShowForm(false)}>
@@ -664,30 +807,28 @@ const StaffAttendance = () => {
     const saveAttendance = async () => { 
         setLoading(true);
         
-        // Asingkan data kepada dua kumpulan: Yang perlu di-UPDATE dan yang baru di-INSERT
         const toUpdate = [];
         const toInsert = [];
 
-        // KITA GUNA 'staffs' UNTUK BAHAGIAN GURU
-        staffs.forEach(s => {
-            const existing = attData.find(a => a.staffId === s.id && a.tarikh === selectedDate);
-            const currentStatus = existing ? existing.status : getDayStatus(s.id);
+        filteredStudents.forEach(s => {
+            const existing = attData.find(a => a.studentId === s.id && a.tarikh === selectedDate);
+            const currentStatus = existing ? existing.status : getStatus(s.id);
             
-            // PENTING: Jangan simpan jika status masih 'Sila Pilih'
+            // JANGAN SIMPAN DATA KOSONG KE SUPABASE
             if (currentStatus === 'Sila Pilih') return;
             
             if (existing && existing.id) {
-                // KUMPULAN 1: Sudah wujud di database (ada ID) -> UPDATE
+                // UPDATE data sedia ada
                 toUpdate.push({
                     id: existing.id,
-                    staffId: s.id,
+                    studentId: s.id,
                     tarikh: selectedDate,
                     status: currentStatus
                 });
             } else {
-                // KUMPULAN 2: Rekod baru untuk hari ini (tiada ID) -> INSERT
+                // INSERT data baharu
                 toInsert.push({
-                    staffId: s.id,
+                    studentId: s.id,
                     tarikh: selectedDate,
                     status: currentStatus
                 });
@@ -695,20 +836,18 @@ const StaffAttendance = () => {
         });
 
         try {
-            // Hantar data kumpulan 1 (jika ada) ke jadual 'staffAttendance'
             if (toUpdate.length > 0) {
-                const { error: errUpdate } = await _supabase.from('staffAttendance').upsert(toUpdate);
+                const { error: errUpdate } = await _supabase.from('studentAttendance').upsert(toUpdate);
                 if (errUpdate) throw errUpdate;
             }
             
-            // Hantar data kumpulan 2 (jika ada) ke jadual 'staffAttendance'
             if (toInsert.length > 0) {
-                const { error: errInsert } = await _supabase.from('staffAttendance').insert(toInsert);
+                const { error: errInsert } = await _supabase.from('studentAttendance').insert(toInsert);
                 if (errInsert) throw errInsert;
             }
 
-            alert('Kehadiran staff berjaya disimpan!');
-            fetchData(); // Segar semula data dari awan
+            alert('Kehadiran murid berjaya disimpan!');
+            fetchData(); 
             setEditMode(false);
             
         } catch (error) {
@@ -732,8 +871,9 @@ const StaffAttendance = () => {
             {loading ? (
                 <div className="text-center py-8 text-gray-500">Memuatkan data kehadiran...</div>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <table className="w-full text-sm">
+                
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th>
@@ -1220,13 +1360,44 @@ const StudentManagement = ({ user }) => {
             <div className="flex justify-between items-center mb-6 flex-wrap gap-2"><h2 className="text-2xl font-bold text-gray-800">Pengurusan Murid</h2><button onClick={addStudent} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Murid</button></div>
             <div className="flex gap-4 mb-4 flex-wrap">
                 {isAdmin && <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Kelas</option>{allKelas.map(k => <option key={k} value={k}>{k}</option>)}</select>}
-                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Umur</option><option value="4">4 Tahun</option><option value="5">5 Tahun</option><option value="6">6 Tahun</option></select>
                 <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm"><option value="">Semua Sesi</option>{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select>
                 {(filterKelas || filterTahun || filterSesi) && <button onClick={() => { setFilterKelas(''); setFilterTahun(''); setFilterSesi(''); }} className="px-3 py-2 bg-gray-200 rounded-lg text-sm">Reset</button>}
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><table className="w-full text-sm"><thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th><th className="px-4 py-3 text-left font-medium text-gray-600">Umur</th><th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th><th className="px-4 py-3 text-left font-medium text-gray-600">Sesi</th><th className="px-4 py-3 text-left font-medium text-gray-600">Guru</th><th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th></tr></thead><tbody className="divide-y divide-gray-100">
-                {filtered.map(s => { const guru = staffs.find(st => st.id === s.guruId); return (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.tahun} thn</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.tahunSesi || currentYear}</td><td className="px-4 py-3 text-xs">{guru?.nama || '-'}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStudent(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button><button onClick={() => deleteStudent(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button></div></td></tr>); })}
-            </tbody></table></div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Nama</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Umur</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Kelas</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Sesi</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-600">Guru</th>
+                            <th className="px-4 py-3 text-center font-medium text-gray-600">Tindakan</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {filtered.map(s => { 
+                            const guru = staffs.find(st => st.id === s.guruId); 
+                            return (
+                                <tr key={s.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3 font-medium">{s.nama}</td>
+                                    <td className="px-4 py-3">{s.tahun} thn</td>
+                                    <td className="px-4 py-3">{s.kelas}</td>
+                                    <td className="px-4 py-3">{s.tahunSesi || currentYear}</td>
+                                    <td className="px-4 py-3 text-xs">{guru?.nama || '-'}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <div className="flex justify-center gap-2">
+                                            <button onClick={() => editStudent(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">Edit</button>
+                                            <button onClick={() => deleteStudent(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Padam</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ); 
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
             {showForm && <Modal title={editId ? 'Edit Murid' : 'Tambah Murid Baru'} onClose={() => setShowForm(false)}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><div><label className="block text-sm font-medium text-gray-700 mb-1">Umur (Tahun)</label><select value={form.tahun} onChange={e => setForm({...form, tahun: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg"><option value={4}>4 Tahun</option><option value={5}>5 Tahun</option><option value={6}>6 Tahun</option></select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Tahun Sesi</label><select value={form.tahunSesi || currentYear} onChange={e => setForm({...form, tahunSesi: parseInt(e.target.value)})} className="w-full px-3 py-2 border rounded-lg">{yearOptions.map(y => <option key={y} value={y}>{y}</option>)}</select></div><Field label="Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="Nama Ibu" value={form.namaIbu} onChange={v => setForm({...form, namaIbu: v})} /><Field label="Nama Bapa" value={form.namaBapa} onChange={v => setForm({...form, namaBapa: v})} /><div className="md:col-span-2"><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /></div></div>
                 <button onClick={saveStudent} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
@@ -1242,8 +1413,8 @@ const StudentInfoPage = ({ user }) => {
     const [staffs, setStaffs] = useState([]);
     const [attendance, setAttendance] = useState([]);
     const [selectedId, setSelectedId] = useState('');
-    const [filterTahun, setFilterTahun] = useState('');
-    const [filterSesi, setFilterSesi] = useState('');
+    const [filterKelas, setFilterKelas] = useState(isAdmin ? '' : user.kelas);
+    const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];    const [filterSesi, setFilterSesi] = useState('');
     const [loading, setLoading] = useState(true);
 
     const currentYear = new Date().getFullYear();
@@ -1274,7 +1445,8 @@ const StudentInfoPage = ({ user }) => {
     }, [user.kelas]);
 
     const filtered = students.filter(s => { 
-        if (filterTahun && s.tahun !== parseInt(filterTahun)) return false; 
+        // Hanya tapis jika filterKelas ada nilai
+        if (filterKelas && s.kelas !== filterKelas) return false; 
         if (filterSesi && s.tahunSesi !== parseInt(filterSesi)) return false; 
         return true; 
     });
@@ -1289,12 +1461,12 @@ const StudentInfoPage = ({ user }) => {
             
             {/* Bahagian Tapisan */}
             <div className="flex gap-4 mb-4 flex-wrap no-print">
-                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
-                    <option value="">Semua Umur</option>
-                    <option value="4">4 Tahun</option>
-                    <option value="5">5 Tahun</option>
-                    <option value="6">6 Tahun</option>
-                </select>
+                {isAdmin && (
+                    <select value={filterKelas} onChange={e => {setFilterKelas(e.target.value); setSelectedId('');}} className="px-3 py-2 border rounded-lg text-sm">
+                        <option value="">Semua Kelas</option>
+                        {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                )}
                 <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
                     <option value="">Semua Sesi</option>
                     {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
@@ -1502,8 +1674,8 @@ const StudentAttendance = ({ user }) => {
             </div>
             
             {loading ? <div className="text-center py-8 text-gray-500">Memuatkan data...</div> : (
-                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                    <table className="w-full text-sm">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-4 py-3 text-left">Nama</th>
@@ -1682,15 +1854,22 @@ const LogbookPage = ({ user }) => {
     );
 };
 
-// ==================== PERFORMANCE PAGE (UPDATED WITH DROPDOWN KELAS) ====================
+// ==================== PERFORMANCE PAGE (PRESTASI MURID - LENGKAP) ====================
 const PerformancePage = ({ user }) => {
     const isAdmin = user.role === 'admin';
     const [students, setStudents] = useState([]);
     const [marks, setMarks] = useState([]);
     const [grades, setGrades] = useState([]);
-    const [showForm, setShowForm] = useState(false);
-    const [form, setForm] = useState({ studentId: '', subjek: '', markah: '' });
     
+    // State untuk Modal (Borang)
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null); 
+    
+    // Asingkan state: Info utama dan Senarai Subjek
+    const [form, setForm] = useState({ studentId: '', jenisUjian: '' });
+    const [markahList, setMarkahList] = useState([{ subjek: '', markah: '' }]);
+    
+    // State untuk Tapisan
     const [filterSesi, setFilterSesi] = useState(new Date().getFullYear().toString());
     const [filterKelas, setFilterKelas] = useState('');
     const [filterStudent, setFilterStudent] = useState('');
@@ -1711,12 +1890,52 @@ const PerformancePage = ({ user }) => {
 
     useEffect(() => { fetchData(); }, []);
 
+    // FUNGSI PENGIRAAN GRED
     const getGrade = (mark) => {
         for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
-        return 'D';
+        return 'E';
     };
 
-    // Ambil senarai nama kelas yang unik secara automatik
+    // LOGIK PENGIRAAN KEDUDUKAN (RANKING) BERDASARKAN TAHUN SESI
+    const rankings = useMemo(() => {
+        const examTypes = [...new Set(marks.map(m => m.jenisUjian))].filter(Boolean);
+        const rankMap = {}; 
+        const currentFilterSesi = parseInt(filterSesi);
+
+        examTypes.forEach(exam => {
+            rankMap[exam] = {};
+            
+            const studentStats = students
+                .filter(s => s.tahunSesi === currentFilterSesi)
+                .map(s => {
+                    const sMarks = marks.filter(m => m.studentId === s.id && m.jenisUjian === exam);
+                    if (sMarks.length === 0) return null;
+                    const avg = sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length;
+                    return { id: s.id, avg, kelas: s.kelas, tahun: s.tahun };
+                }).filter(Boolean);
+
+            [4, 5, 6].forEach(age => {
+                const yearGroup = studentStats.filter(s => s.tahun === age).sort((a, b) => b.avg - a.avg);
+                yearGroup.forEach((s, index) => {
+                    if (!rankMap[exam][s.id]) rankMap[exam][s.id] = {};
+                    rankMap[exam][s.id].yearRank = index + 1;
+                    rankMap[exam][s.id].totalYear = yearGroup.length;
+                });
+            });
+
+            const uniqueClasses = [...new Set(students.map(s => s.kelas))];
+            uniqueClasses.forEach(cls => {
+                const classGroup = studentStats.filter(s => s.kelas === cls).sort((a, b) => b.avg - a.avg);
+                classGroup.forEach((s, index) => {
+                    if (!rankMap[exam][s.id]) rankMap[exam][s.id] = {};
+                    rankMap[exam][s.id].classRank = index + 1;
+                    rankMap[exam][s.id].totalClass = classGroup.length;
+                });
+            });
+        });
+        return rankMap;
+    }, [marks, students, filterSesi]);
+
     const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
 
     const filteredStudents = students.filter(s => {
@@ -1727,24 +1946,81 @@ const PerformancePage = ({ user }) => {
         return true;
     });
 
-    const saveMark = async () => {
-        if (!form.studentId || !form.subjek || !form.markah) return alert('Lengkapkan maklumat');
-        const stu = students.find(s => s.id === form.studentId);
-        
-        const dataToSave = {
-            studentId: form.studentId,
-            subjek: form.subjek,
-            markah: parseInt(form.markah),
-            tahunSesi: stu?.tahunSesi || new Date().getFullYear()
-        };
-
-        const { error } = await _supabase.from('studentMarks').insert([dataToSave]);
-        if (error) alert('Ralat simpan markah: ' + error.message);
-        else { setShowForm(false); fetchData(); }
+    // FUNGSI BUKA BORANG TAMBAH BARU
+    const openAddForm = () => {
+        setEditId(null);
+        setForm({ studentId: '', jenisUjian: '' });
+        setMarkahList([{ subjek: '', markah: '' }]); // Set 1 baris kosong lalai
+        setShowForm(true);
     };
 
+    // FUNGSI BUKA BORANG EDIT
+    const editMark = (m) => {
+        setEditId(m.id);
+        setForm({ studentId: m.studentId, jenisUjian: m.jenisUjian });
+        setMarkahList([{ subjek: m.subjek, markah: m.markah }]); // Hanya load 1 subjek untuk diedit
+        setShowForm(true);
+    };
+
+    // FUNGSI URUS SENARAI SUBJEK DI BORANG
+    const handleMarkahChange = (index, field, value) => {
+        const newList = [...markahList];
+        newList[index][field] = value;
+        setMarkahList(newList);
+    };
+
+    const addSubjectRow = () => {
+        setMarkahList([...markahList, { subjek: '', markah: '' }]);
+    };
+
+    const removeSubjectRow = (index) => {
+        const newList = markahList.filter((_, i) => i !== index);
+        setMarkahList(newList);
+    };
+
+    // FUNGSI SIMPAN (UPDATE & BATCH INSERT)
+    const saveMark = async () => {
+        if (!form.studentId || !form.jenisUjian) return alert('Sila pilih murid dan jenis peperiksaan');
+        
+        // Semak jika ada subjek atau markah yang kosong
+        for (let item of markahList) {
+            if (!item.subjek || item.markah === '') return alert('Sila lengkapkan semua nama subjek dan markah');
+        }
+
+        const stu = students.find(s => s.id === form.studentId);
+        const tahunSesi = stu?.tahunSesi || new Date().getFullYear();
+
+        if (editId) {
+            // Proses Kemas Kini (Hanya 1 subjek)
+            const dataToSave = {
+                studentId: form.studentId,
+                jenisUjian: form.jenisUjian,
+                subjek: markahList[0].subjek,
+                markah: parseInt(markahList[0].markah),
+                tahunSesi
+            };
+            const { error } = await _supabase.from('studentMarks').update(dataToSave).eq('id', editId);
+            if (error) alert('Ralat kemas kini markah: ' + error.message);
+        } else {
+            // Proses Tambah Baru (Secara Pukal / Batch Insert)
+            const dataToInsert = markahList.map(item => ({
+                studentId: form.studentId,
+                jenisUjian: form.jenisUjian,
+                subjek: item.subjek,
+                markah: parseInt(item.markah),
+                tahunSesi
+            }));
+            const { error } = await _supabase.from('studentMarks').insert(dataToInsert);
+            if (error) alert('Ralat simpan markah: ' + error.message);
+        }
+        
+        setShowForm(false); 
+        fetchData();
+    };
+
+    // FUNGSI PADAM
     const deleteMark = async (id) => {
-        if (confirm('Padam markah ini?')) {
+        if (confirm('Padam markah subjek ini?')) {
             await _supabase.from('studentMarks').delete().eq('id', id);
             fetchData();
         }
@@ -1754,7 +2030,7 @@ const PerformancePage = ({ user }) => {
         <div className="fade-in">
             <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
                 <h2 className="text-2xl font-bold text-gray-800">Prestasi Murid - Markah</h2>
-                <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">+ Tambah Markah</button>
+                <button onClick={openAddForm} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">+ Tambah Markah</button>
             </div>
             
             <div className="flex gap-2 mb-6 flex-wrap no-print">
@@ -1781,45 +2057,133 @@ const PerformancePage = ({ user }) => {
                     const sMarks = marks.filter(m => m.studentId === s.id);
                     if (sMarks.length === 0 && filterStudent === s.id) return <p key={s.id} className="text-gray-500 text-center py-4">Tiada rekod markah.</p>;
                     if (sMarks.length === 0) return null;
-                    const avg = Math.round(sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length);
-                    const avgGrade = getGrade(avg);
+
+                    const ujianGroup = sMarks.reduce((acc, m) => {
+                        const jenis = m.jenisUjian || 'Tidak Dinyatakan';
+                        if (!acc[jenis]) acc[jenis] = [];
+                        acc[jenis].push(m);
+                        return acc;
+                    }, {});
+
                     return (
-                        <div key={s.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-4 card-hover">
-                            <div className="flex justify-between items-start mb-4">
-                                <div><h3 className="font-bold text-gray-800">{s.nama}</h3><p className="text-sm text-gray-500">{s.kelas}</p></div>
-                                <div className="text-right"><span className="text-2xl font-bold">{avg}%</span><br/><span className="text-xs font-bold px-2 py-1 bg-gray-100 rounded">Gred: {avgGrade}</span></div>
+                        <div key={s.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6 card-hover">
+                            <div className="flex justify-between items-start mb-4 border-b pb-4">
+                                <div><h3 className="font-bold text-gray-800 text-lg">{s.nama}</h3><p className="text-sm text-gray-500">{s.kelas} • Umur: {s.tahun} Tahun</p></div>
                             </div>
-                            <table className="w-full text-sm">
-                                <tbody className="divide-y divide-gray-100">
-                                    {sMarks.map(m => (
-                                        <tr key={m.id}><td className="py-2">{m.subjek}</td><td className="py-2 text-center font-bold">{m.markah}</td><td className="py-2 text-center text-blue-600">{getGrade(m.markah)}</td><td className="py-2 text-right"><button onClick={() => deleteMark(m.id)} className="text-red-500 text-xs">Padam</button></td></tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            
+                            {Object.entries(ujianGroup).map(([jenis, markahUjian]) => {
+                                const avg = Math.round(markahUjian.reduce((sum, m) => sum + m.markah, 0) / markahUjian.length);
+                                const avgGrade = getGrade(avg);
+                                const rnk = rankings[jenis] && rankings[jenis][s.id] ? rankings[jenis][s.id] : null;
+                                
+                                return (
+                                    <div key={jenis} className="mb-5 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                                            <div>
+                                                <h4 className="font-bold text-emerald-800 uppercase text-sm">{jenis}</h4>
+                                                <div className="flex gap-2 mt-1">
+                                                    {rnk && (
+                                                        <>
+                                                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded shadow-sm">
+                                                                🏆 Kelas: {rnk.classRank} / {rnk.totalClass}
+                                                            </span>
+                                                            <span className="text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded shadow-sm">
+                                                                🌍 Tahun ({s.tahun} thn): {rnk.yearRank} / {rnk.totalYear}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-2xl font-black text-gray-800">{avg}%</span>
+                                                <div className="text-[10px] font-bold text-blue-600">GRED: {avgGrade}</div>
+                                            </div>
+                                        </div>
+
+                                        <table className="w-full text-sm bg-white rounded-lg overflow-hidden shadow-sm">
+                                            <tbody className="divide-y divide-gray-100">
+                                                {markahUjian.map(m => (
+                                                    <tr key={m.id} className="hover:bg-gray-50">
+                                                        <td className="py-2 px-4 text-gray-700">{m.subjek}</td>
+                                                        <td className="py-2 px-4 text-center font-bold text-gray-800 w-16">{m.markah}</td>
+                                                        <td className="py-2 px-4 text-center text-blue-600 font-medium w-16">{getGrade(m.markah)}</td>
+                                                        <td className="py-2 px-4 text-right w-28">
+                                                            <button onClick={() => editMark(m)} className="text-blue-500 text-xs hover:underline mr-3 font-medium">Edit</button>
+                                                            <button onClick={() => deleteMark(m.id)} className="text-red-500 text-xs hover:underline font-medium">Padam</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                );
+                            })}
                         </div>
                     );
                 })
             )}
 
             {showForm && (
-                <Modal title="Tambah Markah" onClose={() => setShowForm(false)}>
+                <Modal title={editId ? "Edit Markah" : "Tambah Markah Pukal"} onClose={() => setShowForm(false)}>
                     <div className="space-y-4">
-                        <label className="block text-sm font-medium">Murid</label>
-                        <select value={form.studentId} onChange={e => setForm({...form, studentId: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
-                            <option value="">Pilih Murid</option>
-                            {students.filter(s => isAdmin || s.kelas === user.kelas).map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}
-                        </select>
-                        <Field label="Subjek" value={form.subjek} onChange={v => setForm({...form, subjek: v})} />
-                        <Field label="Markah" type="number" value={form.markah} onChange={v => setForm({...form, markah: v})} />
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Murid</label>
+                            <select value={form.studentId} onChange={e => setForm({...form, studentId: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-gray-50" disabled={editId !== null}>
+                                <option value="">Pilih Murid</option>
+                                {students.filter(s => isAdmin || s.kelas === user.kelas).map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Peperiksaan</label>
+                            <select value={form.jenisUjian} onChange={e => setForm({...form, jenisUjian: e.target.value})} className="w-full px-3 py-2 border rounded-lg bg-gray-50">
+                                <option value="">Pilih Jenis Peperiksaan</option>
+                                <option value="Ujian Selaras 1">Ujian Selaras 1</option>
+                                <option value="Peperiksaan Pertengahan Tahun">Peperiksaan Pertengahan Tahun</option>
+                                <option value="Ujian Selaras 2">Ujian Selaras 2</option>
+                                <option value="Peperiksaan Akhir Tahun">Peperiksaan Akhir Tahun</option>
+                            </select>
+                        </div>
+
+                        <div className="pt-4 border-t border-gray-200 mt-4">
+                            <p className="text-sm font-bold text-gray-800 mb-3">Senarai Subjek & Markah</p>
+                            
+                            {markahList.map((item, index) => (
+                                <div key={index} className="flex gap-2 items-end mb-3">
+                                    <div className="flex-1">
+                                        <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase">Subjek</label>
+                                        <input type="text" value={item.subjek} onChange={e => handleMarkahChange(index, 'subjek', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Cth: Bahasa Melayu" />
+                                    </div>
+                                    <div className="w-24">
+                                        <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase">Markah</label>
+                                        <input type="number" value={item.markah} onChange={e => handleMarkahChange(index, 'markah', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0-100" />
+                                    </div>
+                                    {!editId && markahList.length > 1 && (
+                                        <button onClick={() => removeSubjectRow(index)} className="mb-1 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Padam Baris">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+
+                            {!editId && (
+                                <button onClick={addSubjectRow} className="mt-2 text-sm text-blue-600 font-bold hover:text-blue-800 flex items-center gap-1 transition-colors">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                    Tambah Subjek Lain
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <button onClick={saveMark} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg">Simpan</button>
+                    
+                    <button onClick={saveMark} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-bold text-sm transition-colors">
+                        Simpan Semua Markah
+                    </button>
                 </Modal>
             )}
         </div>
     );
 };
-
-// ==================== PERFORMANCE SUMMARY (UPDATED WITH DROPDOWN KELAS) ====================
+// ==================== PERFORMANCE SUMMARY (SLIP PEPERIKSAAN LENGKAP) ====================
 const PerformanceSummaryPage = ({ user }) => {
     const isAdmin = user.role === 'admin';
     const [students, setStudents] = useState([]);
@@ -1852,12 +2216,39 @@ const PerformanceSummaryPage = ({ user }) => {
 
     const getGrade = (mark) => {
         for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
-        return 'D';
+        return 'E';
     };
 
-    // Ambil senarai nama kelas yang unik secara automatik
-    const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
+    // LOGIK PENGIRAAN RANKING UNTUK SLIP
+    const rankings = useMemo(() => {
+        const examTypes = [...new Set(marks.map(m => m.jenisUjian))].filter(Boolean);
+        const rankMap = {}; 
+        const currentFilterSesi = parseInt(filterSesi);
 
+        examTypes.forEach(exam => {
+            rankMap[exam] = {};
+            const studentStats = students.filter(s => s.tahunSesi === currentFilterSesi).map(s => {
+                const sMarks = marks.filter(m => m.studentId === s.id && m.jenisUjian === exam);
+                if (sMarks.length === 0) return null;
+                const avg = sMarks.reduce((sum, m) => sum + m.markah, 0) / sMarks.length;
+                return { id: s.id, avg, kelas: s.kelas, tahun: s.tahun };
+            }).filter(Boolean);
+
+            [4, 5, 6].forEach(age => {
+                const yearGroup = studentStats.filter(s => s.tahun === age).sort((a, b) => b.avg - a.avg);
+                yearGroup.forEach((s, i) => { if(!rankMap[exam][s.id]) rankMap[exam][s.id] = {}; rankMap[exam][s.id].yearRank = i+1; rankMap[exam][s.id].totalYear = yearGroup.length; });
+            });
+
+            const allCls = [...new Set(students.map(s => s.kelas))];
+            allCls.forEach(cls => {
+                const clsGroup = studentStats.filter(s => s.kelas === cls).sort((a, b) => b.avg - a.avg);
+                clsGroup.forEach((s, i) => { if(!rankMap[exam][s.id]) rankMap[exam][s.id] = {}; rankMap[exam][s.id].classRank = i+1; rankMap[exam][s.id].totalClass = clsGroup.length; });
+            });
+        });
+        return rankMap;
+    }, [marks, students, filterSesi]);
+
+    const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
     const availableStudents = students.filter(s => {
         const matchSesi = filterSesi ? s.tahunSesi === parseInt(filterSesi) : true;
         const matchKelas = filterKelas ? s.kelas === filterKelas : true;
@@ -1866,16 +2257,23 @@ const PerformanceSummaryPage = ({ user }) => {
     });
 
     const selectedStudent = students.find(s => s.id === selectedId);
-    const sMarks = marks.filter(m => m.studentId === selectedId);
-    const sAttCount = attendance.filter(a => a.studentId === selectedId).length;
+    const studentMarks = marks.filter(m => m.studentId === selectedId);
+    const studentAttCount = attendance.filter(a => a.studentId === selectedId).length;
+
+    // Grouping markah mengikut ujian untuk slip
+    const examGroups = studentMarks.reduce((acc, m) => {
+        const key = m.jenisUjian || 'Ujian';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(m);
+        return acc;
+    }, {});
 
     return (
         <div className="fade-in">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Ringkasan Prestasi Murid</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 no-print">Ringkasan & Cetakan Slip</h2>
             
-            <div className="flex gap-2 mb-6 no-print flex-wrap items-center">
+            <div className="flex gap-2 mb-8 no-print flex-wrap items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                 <select value={filterSesi} onChange={e => {setFilterSesi(e.target.value); setSelectedId('');}} className="px-3 py-2 border rounded-lg text-sm">
-                    <option value="">Semua Sesi</option>
                     {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
                 {isAdmin && (
@@ -1885,40 +2283,88 @@ const PerformanceSummaryPage = ({ user }) => {
                     </select>
                 )}
                 <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="px-3 py-2 border rounded-lg text-sm flex-1 max-w-xs">
-                    <option value="">Pilih Murid</option>
+                    <option value="">Pilih Murid untuk Slip</option>
                     {availableStudents.map(s => <option key={s.id} value={s.id}>{s.nama} ({s.kelas})</option>)}
                 </select>
-                {selectedId && <button onClick={() => window.print()} className="ml-auto px-4 py-2 bg-gray-700 text-white rounded-lg text-sm">🖨 Cetak Slip</button>}
+                {selectedId && <button onClick={() => window.print()} className="ml-auto px-6 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700">🖨 Cetak Slip Laporan</button>}
             </div>
 
-            {loading ? <div className="text-center py-8 text-gray-500">Memuatkan rekod...</div> : 
-             selectedStudent ? (
-                <div className="bg-white p-8 rounded-xl border border-gray-200 print-card max-w-3xl mx-auto">
-                    <div className="text-center border-b pb-4 mb-6">
-                        <h1 className="text-xl font-bold">SLIP PRESTASI MURID PASTI AL-IQBAL 2</h1>
-                        <p className="text-sm text-gray-500">Sesi: {selectedStudent.tahunSesi}</p>
+            {selectedStudent ? (
+                <div className="bg-white p-10 rounded-none border border-gray-300 print-card max-w-4xl mx-auto shadow-lg">
+                    {/* Header Slip */}
+                    <div className="text-center border-b-2 border-gray-800 pb-6 mb-8">
+                        <h1 className="text-2xl font-black tracking-widest text-gray-900">PASTI AL-IQBAL 2</h1>
+                        <p className="text-sm font-bold mt-1">LAPORAN PRESTASI MURID - SESI {selectedStudent.tahunSesi}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                        <div><p className="text-gray-500">Nama Murid:</p><p className="font-bold">{selectedStudent.nama}</p></div>
-                        <div><p className="text-gray-500">Kelas:</p><p className="font-bold">{selectedStudent.kelas}</p></div>
-                        <div><p className="text-gray-500">Kehadiran:</p><p className="font-bold text-emerald-600">{sAttCount} Hari</p></div>
+
+                    {/* Info Murid */}
+                    <div className="grid grid-cols-2 gap-8 mb-8 text-sm">
+                        <div className="space-y-2">
+                            <div className="flex"><span className="w-32 text-gray-500 uppercase text-[10px] font-bold">Nama Murid</span><span className="font-bold">: {selectedStudent.nama}</span></div>
+                            <div className="flex"><span className="w-32 text-gray-500 uppercase text-[10px] font-bold">Kelas</span><span className="font-bold">: {selectedStudent.kelas}</span></div>
+                        </div>
+                        <div className="space-y-2 text-right">
+                            <div className="flex justify-end"><span className="w-32 text-gray-500 uppercase text-[10px] font-bold text-right mr-2">Umur</span><span className="font-bold">: {selectedStudent.tahun} Tahun</span></div>
+                            <div className="flex justify-end"><span className="w-32 text-gray-500 uppercase text-[10px] font-bold text-right mr-2">Kehadiran</span><span className="font-bold">: {studentAttCount} Hari</span></div>
+                        </div>
                     </div>
-                    <table className="w-full text-sm border-collapse">
-                        <thead><tr className="bg-gray-100"><th className="border p-2 text-left">Subjek</th><th className="border p-2 text-center">Markah</th><th className="border p-2 text-center">Gred</th></tr></thead>
-                        <tbody>
-                            {sMarks.map(m => (
-                                <tr key={m.id}><td className="border p-2">{m.subjek}</td><td className="border p-2 text-center font-bold">{m.markah}</td><td className="border p-2 text-center">{getGrade(m.markah)}</td></tr>
-                            ))}
-                            {sMarks.length === 0 && <tr><td colSpan="3" className="border p-4 text-center text-gray-500">Tiada markah direkodkan.</td></tr>}
-                        </tbody>
-                    </table>
+
+                    {/* Jadual Markah mengikut Ujian */}
+                    {Object.entries(examGroups).map(([examName, mList]) => {
+                        const avg = Math.round(mList.reduce((s, m) => s + m.markah, 0) / mList.length);
+                        const rnk = rankings[examName] && rankings[examName][selectedStudent.id] ? rankings[examName][selectedStudent.id] : null;
+
+                        return (
+                            <div key={examName} className="mb-10 last:mb-0">
+                                <div className="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
+                                    <h3 className="font-black text-gray-800 uppercase tracking-tighter">{examName}</h3>
+                                    {rnk && (
+                                        <div className="text-[10px] flex gap-3 font-bold">
+                                            <span className="text-blue-700">KEDUDUKAN KELAS: {rnk.classRank} / {rnk.totalClass}</span>
+                                            <span className="text-purple-700">KEDUDUKAN TAHUN: {rnk.yearRank} / {rnk.totalYear}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <table className="w-full text-sm border-2 border-gray-800">
+                                    <thead>
+                                        <tr className="bg-gray-100 border-b-2 border-gray-800">
+                                            <th className="p-3 text-left border-r border-gray-800">Mata Pelajaran</th>
+                                            <th className="p-3 text-center border-r border-gray-800 w-24">Markah</th>
+                                            <th className="p-3 text-center w-24">Gred</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y border-gray-800">
+                                        {mList.map(m => (
+                                            <tr key={m.id}>
+                                                <td className="p-3 border-r border-gray-800 uppercase font-medium">{m.subjek}</td>
+                                                <td className="p-3 text-center border-r border-gray-800 font-bold">{m.markah}</td>
+                                                <td className="p-3 text-center font-bold text-blue-700">{getGrade(m.markah)}</td>
+                                            </tr>
+                                        ))}
+                                        <tr className="bg-gray-50 font-black border-t-2 border-gray-800">
+                                            <td className="p-3 text-right border-r border-gray-800">PURATA KESELURUHAN</td>
+                                            <td className="p-3 text-center border-r border-gray-800">{avg}%</td>
+                                            <td className="p-3 text-center text-emerald-700">{getGrade(avg)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        );
+                    })}
+
+                    {Object.keys(examGroups).length === 0 && <p className="text-center text-gray-400 py-10 border-2 border-dashed rounded-xl">Tiada rekod peperiksaan ditemui untuk murid ini.</p>}
+
+                    {/* Tandatangan Section */}
+                    <div className="mt-16 grid grid-cols-2 gap-20 text-center">
+                        <div className="border-t border-gray-800 pt-4"><p className="text-xs font-bold uppercase">Tandatangan Guru Kelas</p></div>
+                        <div className="border-t border-gray-800 pt-4"><p className="text-xs font-bold uppercase">Tandatangan Penjaga</p></div>
+                    </div>
                 </div>
-            ) : <p className="text-center text-gray-400">Sila pilih murid untuk melihat ringkasan.</p>}
+            ) : <div className="text-center py-20 bg-white rounded-xl border-2 border-dashed text-gray-400">Sila pilih murid untuk menjana slip laporan peperiksaan.</div>}
         </div>
     );
 };
-
-// ==================== PERFORMANCE BY YEAR (UPDATED WITH DROPDOWN KELAS) ====================
+// ==================== PERFORMANCE BY YEAR (ANALISIS KESELURUHAN) ====================
 const PerformanceByYearPage = ({ user }) => {
     const isAdmin = user.role === 'admin';
     const [students, setStudents] = useState([]);
@@ -1929,6 +2375,7 @@ const PerformanceByYearPage = ({ user }) => {
     const [filterTahun, setFilterTahun] = useState('6');
     const [filterSesi, setFilterSesi] = useState(new Date().getFullYear().toString());
     const [filterKelas, setFilterKelas] = useState('');
+    const [filterUjian, setFilterUjian] = useState(''); // Filter baru: Jenis Peperiksaan
 
     const yearOptions = []; for (let y = 2024; y <= 2050; y++) yearOptions.push(y);
 
@@ -1948,71 +2395,72 @@ const PerformanceByYearPage = ({ user }) => {
 
     const getGrade = (mark) => {
         for (const g of grades) { if (mark >= g.min && mark <= g.max) return g.gred; }
-        return 'D';
+        return 'E';
     };
 
-    // Ambil senarai nama kelas yang unik secara automatik
     const senaraiKelas = [...new Set(students.map(s => s.kelas).filter(Boolean))];
+    const senaraiUjian = [...new Set(marks.map(m => m.jenisUjian).filter(Boolean))];
 
     const filtered = students.filter(s => {
         const matchUmur = s.tahun === parseInt(filterTahun);
         const matchSesi = filterSesi ? s.tahunSesi === parseInt(filterSesi) : true;
         const matchKelas = filterKelas ? s.kelas === filterKelas : true;
-        const matchAccess = isAdmin || s.kelas === user.kelas;
-        return matchUmur && matchSesi && matchKelas && matchAccess;
-    });
+        return matchUmur && matchSesi && matchKelas;
+    }).map(s => {
+        // Cari markah murid untuk peperiksaan yang dipilih
+        const sMarks = marks.filter(m => m.studentId === s.id && (filterUjian ? m.jenisUjian === filterUjian : true));
+        const avg = sMarks.length ? Math.round(sMarks.reduce((a, b) => a + b.markah, 0) / sMarks.length) : 0;
+        return { ...s, avg, hasData: sMarks.length > 0 };
+    }).sort((a, b) => b.avg - a.avg); // Susun ikut ranking markah tertinggi
 
     return (
         <div className="fade-in">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Analisis Prestasi Keseluruhan</h2>
             
-            <div className="flex gap-2 mb-6 flex-wrap">
-                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+            <div className="flex gap-2 mb-6 flex-wrap no-print bg-white p-4 rounded-xl shadow-sm border">
+                <select value={filterTahun} onChange={e => setFilterTahun(e.target.value)} className="px-3 py-2 border rounded-lg text-sm font-bold text-emerald-700">
                     <option value="4">Umur 4 Tahun</option><option value="5">Umur 5 Tahun</option><option value="6">Umur 6 Tahun</option>
                 </select>
                 <select value={filterSesi} onChange={e => setFilterSesi(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
                     <option value="">Semua Sesi</option>
                     {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
-                {isAdmin && (
-                    <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm min-w-[120px]">
-                        <option value="">Semua Kelas</option>
-                        {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
-                    </select>
-                )}
+                <select value={filterUjian} onChange={e => setFilterUjian(e.target.value)} className="px-3 py-2 border rounded-lg text-sm min-w-[150px]">
+                    <option value="">Semua Peperiksaan</option>
+                    {senaraiUjian.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm min-w-[120px]">
+                    <option value="">Semua Kelas</option>
+                    {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
             </div>
 
             {loading ? <div className="text-center py-8 text-gray-500">Memuatkan data prestasi...</div> : (
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-emerald-600 text-white">
                             <tr>
-                                <th className="p-3 text-left">Nama Murid</th>
-                                <th className="p-3 text-left">Kelas</th>
-                                <th className="p-3 text-center">Purata Markah</th>
-                                <th className="p-3 text-center">Gred Keseluruhan</th>
+                                <th className="p-4 text-left w-16">Rank</th>
+                                <th className="p-4 text-left">Nama Murid</th>
+                                <th className="p-4 text-left">Kelas</th>
+                                <th className="p-4 text-center">Purata Markah</th>
+                                <th className="p-4 text-center">Gred</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {filtered.map(s => {
-                                const sm = marks.filter(m => m.studentId === s.id);
-                                const avg = sm.length ? Math.round(sm.reduce((a,b) => a+b.markah, 0)/sm.length) : 0;
-                                return (
-                                    <tr key={s.id} className="border-t hover:bg-gray-50">
-                                        <td className="p-3 font-medium">{s.nama}</td>
-                                        <td className="p-3">{s.kelas}</td>
-                                        <td className="p-3 text-center">{sm.length ? `${avg}%` : '-'}</td>
-                                        <td className="p-3 text-center">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold ${sm.length ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                {sm.length ? getGrade(avg) : 'Tiada'}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {filtered.length === 0 && (
-                                <tr><td colSpan="4" className="text-center py-6 text-gray-500">Tiada murid ditemui untuk tapisan ini.</td></tr>
-                            )}
+                        <tbody className="divide-y">
+                            {filtered.map((s, index) => (
+                                <tr key={s.id} className={`hover:bg-gray-50 ${!s.hasData ? 'opacity-50' : ''}`}>
+                                    <td className="p-4 font-black text-gray-400">#{index + 1}</td>
+                                    <td className="p-4 font-bold text-gray-800">{s.nama}</td>
+                                    <td className="p-4 text-gray-500">{s.kelas}</td>
+                                    <td className="p-4 text-center font-black text-lg">{s.hasData ? `${s.avg}%` : '-'}</td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-black ${s.hasData ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                                            {s.hasData ? getGrade(s.avg) : 'Tiada Data'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -2053,13 +2501,12 @@ const LoginPage = () => {
 
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">No Kad Pengenalan / IC</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">No. Kad Pengenalan</label>
                         <input 
                             type="text" 
                             value={ic} 
                             onChange={(e) => setIc(e.target.value)}
                             className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                            placeholder="Contoh: 011"
                             required
                         />
                     </div>
@@ -2070,7 +2517,6 @@ const LoginPage = () => {
                             value={password} 
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                            placeholder="••••••••"
                             required
                         />
                     </div>
