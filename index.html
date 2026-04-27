@@ -54,59 +54,6 @@ const getGradeForMark = (mark) => {
 const getStaffById = (id) => getData('users').find(u => u.id === id);
 const getStudentById = (id) => getData('students').find(s => s.id === id);
 
-const initializeData = () => {
-    if (!localStorage.getItem('pasti_initialized_v4')) {
-        const users = [
-            { id: 'admin1', nama: 'Ahmad bin Ali', role: 'admin', ic: '800101011234', noHp: '012-3456789', alamat: 'Kuala Lumpur', tarikhLahir: '1980-01-01', tarikhMula: '2015-01-01', password: 'admin123' },
-            { id: 'staff1', nama: 'Siti Aminah binti Hassan', role: 'staff', ic: '900202021234', noHp: '013-4567890', alamat: 'Selangor', tarikhLahir: '1990-02-02', tarikhMula: '2018-03-15', kelas: 'Ceria 4 Tahun', password: 'staff123' },
-            { id: 'staff2', nama: 'Nurul Huda binti Ismail', role: 'staff', kelas: 'Ceria 5 Tahun', ic: '910303031234', noHp: '014-5678901', alamat: 'Selangor', tarikhLahir: '1991-03-03', tarikhMula: '2019-06-01', password: 'staff123' },
-            { id: 'staff3', nama: 'Fatimah binti Yusof', role: 'staff', kelas: 'Ceria 6 Tahun', ic: '850404041234', noHp: '015-6789012', alamat: 'Kuala Lumpur', tarikhLahir: '1985-04-04', tarikhMula: '2017-09-01', password: 'staff123' },
-        ];
-        const currentYear = new Date().getFullYear();
-        const students = [
-            { id: 'stu1', nama: 'Muhammad Aiman bin Razak', tarikhLahir: '2018-05-10', tahun: 6, kelas: 'Ceria 6 Tahun', guruId: 'staff3', alamat: 'No 12, Jalan Mawar, KL', namaIbu: 'Zainab binti Omar', namaBapa: 'Razak bin Abdullah', tahunSesi: currentYear },
-            { id: 'stu2', nama: 'Aisyah binti Khalid', tarikhLahir: '2019-08-22', tahun: 5, kelas: 'Ceria 5 Tahun', guruId: 'staff2', alamat: 'No 5, Jalan Melati, SG', namaIbu: 'Noraini binti Ahmad', namaBapa: 'Khalid bin Hassan', tahunSesi: currentYear },
-            { id: 'stu3', nama: 'Adam bin Farid', tarikhLahir: '2020-01-15', tahun: 4, kelas: 'Ceria 4 Tahun', guruId: 'staff1', alamat: 'No 8, Jalan Kenanga, SG', namaIbu: 'Salmah binti Yusof', namaBapa: 'Farid bin Ali', tahunSesi: currentYear },
-            { id: 'stu4', nama: 'Hana binti Zaki', tarikhLahir: '2018-11-30', tahun: 6, kelas: 'Ceria 6 Tahun', guruId: 'staff3', alamat: 'No 22, Jalan Dahlia, KL', namaIbu: 'Rashida binti Mohd', namaBapa: 'Zaki bin Osman', tahunSesi: currentYear },
-            { id: 'stu5', nama: 'Danial bin Hakim', tarikhLahir: '2019-04-18', tahun: 5, kelas: 'Ceria 5 Tahun', guruId: 'staff2', alamat: 'No 15, Jalan Teratai, SG', namaIbu: 'Azizah binti Tan', namaBapa: 'Hakim bin Sulaiman', tahunSesi: currentYear },
-            { id: 'stu6', nama: 'Sofia binti Amran', tarikhLahir: '2020-07-25', tahun: 4, kelas: 'Ceria 4 Tahun', guruId: 'staff1', alamat: 'No 3, Jalan Anggerik, SG', namaIbu: 'Mariam binti Salleh', namaBapa: 'Amran bin Ibrahim', tahunSesi: currentYear },
-        ];
-        setData('users', users);
-        setData('students', students);
-        setData('staffAttendance', [
-            { id: 'sa1', staffId: 'staff1', tarikh: '2024-01-15', status: 'Hadir' },
-            { id: 'sa2', staffId: 'staff2', tarikh: '2024-01-15', status: 'Hadir' },
-            { id: 'sa3', staffId: 'staff3', tarikh: '2024-01-15', status: 'Cuti' },
-        ]);
-        setData('grades', [
-            { id: 'g1', gred: 'A', min: 80, max: 100 },
-            { id: 'g2', gred: 'B', min: 65, max: 79 },
-            { id: 'g3', gred: 'C', min: 50, max: 64 },
-            { id: 'g4', gred: 'D', min: 0, max: 49 },
-        ]);
-        setData('studentAttendance', [
-            { id: 'att1', studentId: 'stu1', tarikh: '2024-01-15', status: 'Hadir' },
-            { id: 'att2', studentId: 'stu2', tarikh: '2024-01-15', status: 'Hadir' },
-            { id: 'att3', studentId: 'stu3', tarikh: '2024-01-15', status: 'Tidak Hadir' },
-            { id: 'att4', studentId: 'stu4', tarikh: '2024-01-15', status: 'Hadir' },
-            { id: 'att5', studentId: 'stu5', tarikh: '2024-01-15', status: 'Hadir' },
-            { id: 'att6', studentId: 'stu6', tarikh: '2024-01-15', status: 'Tidak Hadir' },
-        ]);
-        setData('logbooks', [
-            { id: 'lb1', staffId: 'staff1', tarikh: '2024-01-15', tahun: 2024, aktiviti: 'Aktiviti mewarna dan bercerita', catatan: 'Semua murid aktif', gambar: '' },
-            { id: 'lb2', staffId: 'staff2', tarikh: '2024-01-15', tahun: 2024, aktiviti: 'Belajar nombor 1-10', catatan: 'Murid faham dengan baik', gambar: '' },
-        ]);
-        setData('studentMarks', [
-            { id: 'mk1', studentId: 'stu1', subjek: 'Jawi', markah: 85, tahunSesi: currentYear },
-            { id: 'mk2', studentId: 'stu1', subjek: 'Al-Quran', markah: 90, tahunSesi: currentYear },
-            { id: 'mk3', studentId: 'stu2', subjek: 'Jawi', markah: 72, tahunSesi: currentYear },
-            { id: 'mk4', studentId: 'stu2', subjek: 'Bahasa Arab', markah: 68, tahunSesi: currentYear },
-        ]);
-        setData('calendarEvents', []);
-        localStorage.setItem('pasti_initialized_v4', 'true');
-    }
-};
-
 // ==================== AUTHENTICATION ====================
 const AuthContext = React.createContext();
 
@@ -697,7 +644,7 @@ const StaffAttendance = () => {
 
     const getDayStatus = (staffId) => { 
         const entry = attData.find(a => a.staffId === staffId && a.tarikh === selectedDate); 
-        return entry ? entry.status : 'Hadir'; // Default 'Hadir' jika tiada rekod
+        return entry ? entry.status : 'Sila Pilih'; 
     };
 
     const updateStatus = (staffId, status) => { 
@@ -723,8 +670,11 @@ const StaffAttendance = () => {
 
         // KITA GUNA 'staffs' UNTUK BAHAGIAN GURU
         staffs.forEach(s => {
-            // KITA GUNA 'staffId' BUKAN 'studentId'
             const existing = attData.find(a => a.staffId === s.id && a.tarikh === selectedDate);
+            const currentStatus = existing ? existing.status : getDayStatus(s.id);
+            
+            // PENTING: Jangan simpan jika status masih 'Sila Pilih'
+            if (currentStatus === 'Sila Pilih') return;
             
             if (existing && existing.id) {
                 // KUMPULAN 1: Sudah wujud di database (ada ID) -> UPDATE
@@ -732,14 +682,14 @@ const StaffAttendance = () => {
                     id: existing.id,
                     staffId: s.id,
                     tarikh: selectedDate,
-                    status: existing.status
+                    status: currentStatus
                 });
             } else {
                 // KUMPULAN 2: Rekod baru untuk hari ini (tiada ID) -> INSERT
                 toInsert.push({
                     staffId: s.id,
                     tarikh: selectedDate,
-                    status: existing ? existing.status : 'Hadir' // Default Hadir
+                    status: currentStatus
                 });
             }
         });
@@ -796,21 +746,27 @@ const StaffAttendance = () => {
                             {staffs.map(s => { 
                                 const status = getDayStatus(s.id); 
                                 const total = attData.filter(a => a.staffId === s.id && a.status === 'Hadir').length; 
-                                const color = status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : status === 'Cuti' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'; 
+                                const color = status === 'Sila Pilih' ? 'bg-gray-100 text-gray-500 border border-gray-300' : 
+                                              status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : 
+                                              status === 'Cuti' ? 'bg-amber-100 text-amber-700' : 
+                                              'bg-red-100 text-red-700'; 
                                 return (
                                     <tr key={s.id} className="hover:bg-gray-50">
                                         <td className="px-4 py-3 font-medium">{s.nama}</td>
                                         <td className="px-4 py-3">{s.kelas}</td>
                                         <td className="px-4 py-3 text-center">
                                             {editMode ? (
-                                                <select value={status} onChange={e => updateStatus(s.id, e.target.value)} className="px-2 py-1 border rounded text-sm">
-                                                    <option>Hadir</option>
-                                                    <option>Cuti</option>
-                                                    <option>Tidak Hadir</option>
-                                                    <option>Sakit</option>
+                                                <select value={status} onChange={e => updateStatus(s.id, e.target.value)} className={`px-2 py-1 border rounded text-sm ${status === 'Sila Pilih' ? 'text-gray-400 border-red-300' : ''}`}>
+                                                    <option value="Sila Pilih" disabled>-- Pilih --</option>
+                                                    <option value="Hadir">Hadir</option>
+                                                    <option value="Cuti">Cuti</option>
+                                                    <option value="Tidak Hadir">Tidak Hadir</option>
+                                                    <option value="Sakit">Sakit</option>
                                                 </select>
                                             ) : (
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{status}</span>
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${color}`}>
+                                                    {status === 'Sila Pilih' ? 'BELUM DITANDA' : status}
+                                                </span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-center">
@@ -1450,7 +1406,8 @@ const StudentAttendance = ({ user }) => {
 
     const getStatus = (studentId) => { 
         const entry = attData.find(a => a.studentId === studentId && a.tarikh === selectedDate); 
-        return entry ? entry.status : 'Hadir'; 
+        // Jika tiada rekod, pulangkan 'Sila Pilih' (bukan 'Hadir')
+        return entry ? entry.status : 'Sila Pilih'; 
     };
 
     const updateStatus = (studentId, status) => { 
@@ -1469,46 +1426,47 @@ const StudentAttendance = ({ user }) => {
     const saveAttendance = async () => { 
         setLoading(true);
         
-        // Asingkan data kepada dua kumpulan: Yang perlu di-UPDATE dan yang baru di-INSERT
         const toUpdate = [];
         const toInsert = [];
 
         filteredStudents.forEach(s => {
             const existing = attData.find(a => a.studentId === s.id && a.tarikh === selectedDate);
+            const currentStatus = existing ? existing.status : getStatus(s.id);
+            
+            // JANGAN SIMPAN DATA KOSONG KE SUPABASE
+            if (currentStatus === 'Sila Pilih') return;
             
             if (existing && existing.id) {
-                // KUMPULAN 1: Sudah wujud di database (ada ID) -> UPDATE
+                // UPDATE data sedia ada
                 toUpdate.push({
                     id: existing.id,
                     studentId: s.id,
                     tarikh: selectedDate,
-                    status: existing.status
+                    status: currentStatus
                 });
             } else {
-                // KUMPULAN 2: Rekod baru untuk hari ini (tiada ID) -> INSERT
+                // INSERT data baharu
                 toInsert.push({
                     studentId: s.id,
                     tarikh: selectedDate,
-                    status: existing ? existing.status : 'Hadir' // Default Hadir
+                    status: currentStatus
                 });
             }
         });
 
         try {
-            // Hantar data kumpulan 1 (jika ada)
             if (toUpdate.length > 0) {
                 const { error: errUpdate } = await _supabase.from('studentAttendance').upsert(toUpdate);
                 if (errUpdate) throw errUpdate;
             }
             
-            // Hantar data kumpulan 2 (jika ada)
             if (toInsert.length > 0) {
                 const { error: errInsert } = await _supabase.from('studentAttendance').insert(toInsert);
                 if (errInsert) throw errInsert;
             }
 
             alert('Kehadiran murid berjaya disimpan!');
-            fetchData(); // Segar semula data dari awan
+            fetchData(); 
             setEditMode(false);
             
         } catch (error) {
@@ -1562,11 +1520,20 @@ const StudentAttendance = ({ user }) => {
                                         <td className="px-4 py-3 text-gray-500 text-xs">{s.kelas}</td>
                                         <td className="px-4 py-3 text-center">
                                             {editMode ? (
-                                                <select value={status} onChange={e => updateStatus(s.id, e.target.value)} className="px-2 py-1 border rounded text-sm">
-                                                    <option>Hadir</option><option>Tidak Hadir</option><option>Cuti</option><option>Sakit</option>
-                                                </select>
+                                                <select value={status} onChange={e => updateStatus(s.id, e.target.value)} className={`px-2 py-1 border rounded text-sm ${status === 'Sila Pilih' ? 'text-gray-400 border-red-300' : ''}`}>
+                                                    <option value="Sila Pilih" disabled>-- Pilih --</option>
+                                                    <option value="Hadir">Hadir</option>
+                                                    <option value="Tidak Hadir">Tidak Hadir</option>
+                                                    <option value="Cuti">Cuti</option>
+                                                    <option value="Sakit">Sakit</option>
+                                                    </select>
                                             ) : (
-                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase 
+                                                    ${status === 'Sila Pilih' ? 'bg-gray-100 text-gray-500 border border-gray-300' : 
+                                                      status === 'Hadir' ? 'bg-emerald-100 text-emerald-700' : 
+                                                      'bg-red-100 text-red-700'}`}>
+                                                    {status === 'Sila Pilih' ? 'BELUM DITANDA' : status}
+                                                </span>
                                             )}
                                         </td>
                                     </tr>
