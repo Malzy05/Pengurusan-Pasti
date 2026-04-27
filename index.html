@@ -25,10 +25,21 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         @media print {
+            @page { size: A4; margin: 15mm; }
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white; }
-            .print-card { box-shadow: none !important; border: 1px solid #ddd !important; page-break-inside: avoid; }
+            
+            /* KOD AJAIB UNTUK LEPASKAN KUNCI SKROL & KETINGGIAN APLIKASI WAKTU PRINT */
+            html, body, #root, .h-screen, .overflow-hidden, .overflow-y-auto, .flex-1 {
+                height: auto !important;
+                min-height: auto !important;
+                overflow: visible !important;
+                display: block !important;
+            }
+            
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-card { box-shadow: none !important; border: none !important; padding: 0 !important; page-break-inside: auto; }
+            .elak-terpotong { page-break-inside: avoid; margin-bottom: 20px; }
             .print-table { width: 100%; border-collapse: collapse; }
             .print-table th, .print-table td { border: 1px solid #ddd; padding: 8px; }
         }
@@ -2088,7 +2099,7 @@ const PerformancePage = ({ user }) => {
                                                                 🏆 Kelas: {rnk.classRank} / {rnk.totalClass}
                                                             </span>
                                                             <span className="text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded shadow-sm">
-                                                                🌍 Tahun ({s.tahun} thn): {rnk.yearRank} / {rnk.totalYear}
+                                                                🧑‍🎓 Tahun ({s.tahun} thn): {rnk.yearRank} / {rnk.totalYear}
                                                             </span>
                                                         </>
                                                     )}
@@ -2315,7 +2326,7 @@ const PerformanceSummaryPage = ({ user }) => {
                         const rnk = rankings[examName] && rankings[examName][selectedStudent.id] ? rankings[examName][selectedStudent.id] : null;
 
                         return (
-                            <div key={examName} className="mb-10 last:mb-0">
+                            <div key={examName} className="mb-10 last:mb-0 elak-terpotong">
                                 <div className="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
                                     <h3 className="font-black text-gray-800 uppercase tracking-tighter">{examName}</h3>
                                     {rnk && (
@@ -2355,7 +2366,7 @@ const PerformanceSummaryPage = ({ user }) => {
                     {Object.keys(examGroups).length === 0 && <p className="text-center text-gray-400 py-10 border-2 border-dashed rounded-xl">Tiada rekod peperiksaan ditemui untuk murid ini.</p>}
 
                     {/* Tandatangan Section */}
-                    <div className="mt-16 grid grid-cols-2 gap-20 text-center">
+                    <div className="mt-16 grid grid-cols-2 gap-20 text-center elak-terpotong">
                         <div className="border-t border-gray-800 pt-4"><p className="text-xs font-bold uppercase">Tandatangan Guru Kelas</p></div>
                         <div className="border-t border-gray-800 pt-4"><p className="text-xs font-bold uppercase">Tandatangan Penjaga</p></div>
                     </div>
