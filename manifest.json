@@ -1,0 +1,16 @@
+{
+  "name": "Sistem Pasti Al-Iqbal 2",
+  "short_name": "Pasti Al-Iqbal",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#065f46",
+  "theme_color": "#065f46",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3076/3076014.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
