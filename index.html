@@ -341,7 +341,7 @@ const ProfilePage = ({ user }) => {
                     </div>
                     <div>
                         <h3 className="text-xl font-bold text-gray-800">{user.nama}</h3>
-                        <p className="text-sm text-gray-500">{isAdmin ? 'Administrator' : 'Guru'} • {user.ic}</p>
+                        <p className="text-sm text-gray-500">{isAdmin ? 'Pengurus' : 'Guru'} • {user.ic}</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2156,7 +2156,7 @@ const App = () => {
                         <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-[#065f46] font-bold text-xl">🏢</div>
                         <div>
                             <h1 className="font-bold text-xl tracking-wider">Pasti Al-Iqbal 2</h1>
-                            <p className="text-xs text-emerald-300">{isAdmin ? 'Administrator' : 'Guru Kelas'}</p>
+                            <p className="text-xs text-emerald-300">{isAdmin ? 'Pengurus' : 'Guru Kelas'}</p>
                         </div>
                     </div>
                     {/* Butang Tutup (X) untuk telefon */}
