@@ -90,13 +90,9 @@ const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // 1. Semak sesi semasa apabila aplikasi bermula
-        // 1. Semak sesi semasa apabila aplikasi bermula (DENGAN AUTO-CUCI)
         const checkSession = async () => {
             try {
                 const { data: { session }, error } = await _supabase.auth.getSession();
-                
-                // Jika Supabase kesan ralat memori (seperti Lock error tadi), ia akan terus pergi ke 'catch'
                 if (error) throw error; 
 
                 if (session) {
@@ -110,18 +106,18 @@ const AuthProvider = ({ children }) => {
                     setUser(profile);
                 }
             } catch (err) {
-                console.error("Sistem mengesan ralat memori lama. Sedang mencuci...", err);
-                // SISTEM AUTO-CUCI: Buang semua memori lama & log keluar supaya skrin tidak putih
+                console.error("Mencuci memori yang tersangkut...", err);
                 localStorage.clear();
-                await _supabase.auth.signOut();
+                // KUNCI PENYELESAIAN: Kita buang 'await' supaya sistem tak tunggu Supabase
+                _supabase.auth.signOut(); 
                 setUser(null);
             } finally {
+                // Wajib jalankan ini untuk mengelakkan skrin putih!
                 setLoading(false);
             }
         };
         checkSession();
 
-        // 2. Dengar perubahan status auth (login/logout)
         const { data: { subscription } } = _supabase.auth.onAuthStateChange(async (_event, session) => {
             if (session) {
                 const { data: profile } = await _supabase
@@ -149,7 +145,9 @@ const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        await _supabase.auth.signOut();
+        // PAKSA KELUAR: Cuci memori serta-merta bila butang ditekan
+        _supabase.auth.signOut(); 
+        localStorage.clear();
         setUser(null);
     };
 
