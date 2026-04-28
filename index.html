@@ -107,29 +107,37 @@ const AuthProvider = ({ children }) => {
                 }
             } catch (err) {
                 console.error("Mencuci memori yang tersangkut...", err);
+                // Cuci semua jenis memori
                 localStorage.clear();
-                // KUNCI PENYELESAIAN: Kita buang 'await' supaya sistem tak tunggu Supabase
-                _supabase.auth.signOut(); 
+                sessionStorage.clear();
                 setUser(null);
             } finally {
                 // Wajib jalankan ini untuk mengelakkan skrin putih!
                 setLoading(false);
             }
         };
+        
         checkSession();
 
         const { data: { subscription } } = _supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session) {
-                const { data: profile } = await _supabase
-                    .from('staff')
-                    .select('*')
-                    .eq('auth_id', session.user.id)
-                    .single();
-                setUser(profile);
-            } else {
+            try {
+                if (session) {
+                    const { data: profile, error } = await _supabase
+                        .from('staff')
+                        .select('*')
+                        .eq('auth_id', session.user.id)
+                        .single();
+                    if (error) throw error;
+                    setUser(profile);
+                } else {
+                    setUser(null);
+                }
+            } catch (err) {
+                console.error("Ralat onAuthStateChange:", err);
                 setUser(null);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         });
 
         return () => subscription.unsubscribe();
@@ -145,10 +153,12 @@ const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        // PAKSA KELUAR: Cuci memori serta-merta bila butang ditekan
-        _supabase.auth.signOut(); 
+        // Cuci memori terlebih dahulu dengan pantas
         localStorage.clear();
+        sessionStorage.clear();
         setUser(null);
+        // Biarkan Supabase buat kerja log keluarnya di belakang tabir tanpa kita tunggu
+        _supabase.auth.signOut().catch(e => console.log("Abaikan ralat log keluar", e));
     };
 
     const updateUser = async (data) => {
