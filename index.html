@@ -51,16 +51,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Pasti">
-
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('Service Worker didaftarkan!'))
-            .catch(err => console.log('Ralat pendaftaran SW:', err));
-        });
-      }
-    </script>
+      
 </head>
 <body class="bg-gray-50">
 <div id="root"></div>
@@ -90,80 +81,96 @@ const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const checkSession = async () => {
-            try {
-                const { data: { session }, error } = await _supabase.auth.getSession();
-                if (error) throw error; 
+        let isMounted = true;
 
-                if (session) {
-                    const { data: profile, error: profileError } = await _supabase
+        // PENYELESAIAN 1: Kita naikkan kesabaran web kepada 8 Saat.
+        // Ini memberi peluang yang cukup untuk Supabase memecahkan "Kunci Hantu" (yang ambil masa 5 saat)
+        const timer = setTimeout(() => {
+            if (isMounted && loading) {
+                console.warn("Masa tamat. Memaksa skrin dimuatkan.");
+                setLoading(false);
+            }
+        }, 8000);
+
+        const initAuth = async () => {
+            try {
+                // PENYELESAIAN 2: Kita WAJIB guna getSession() supaya lepas refresh, 
+                // ia cuba baca semula data dari pangkalan data.
+                const { data: { session }, error } = await _supabase.auth.getSession();
+                
+                if (error) throw error;
+                
+                if (session && isMounted) {
+                    const { data: profile } = await _supabase
                         .from('staff')
                         .select('*')
                         .eq('auth_id', session.user.id)
                         .single();
                     
-                    if (profileError) throw profileError;
-                    setUser(profile);
+                    setUser(profile || null);
                 }
             } catch (err) {
-                // SEMAKAN BAHARU: Jika ralat berpunca dari buka banyak tab, ABAIKAN.
-                if (err.message && (err.message.includes("Lock") || err.message.includes("stole"))) {
-                    console.warn("Abaikan: Tab lain sedang menguruskan sesi log masuk.");
-                } else {
-                    console.error("Mencuci memori yang rosak...", err);
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    setUser(null);
-                }
+                console.warn("Abaikan ralat sesi sementara (Kunci Hantu):", err);
             } finally {
-                setLoading(false);
+                // Skrin hijau akan hilang sebaik sahaja Supabase selesai
+                if (isMounted) setLoading(false);
+                clearTimeout(timer);
             }
         };
-        
-        checkSession();
 
-        const { data: { subscription } } = _supabase.auth.onAuthStateChange(async (_event, session) => {
-            try {
-                if (session) {
-                    const { data: profile, error } = await _supabase
-                        .from('staff')
-                        .select('*')
-                        .eq('auth_id', session.user.id)
-                        .single();
-                    if (error) throw error;
-                    setUser(profile);
-                } else {
-                    setUser(null);
-                }
-            } catch (err) {
-                // SEMAKAN BAHARU: Abaikan ralat jika ia isu kunci tab
-                if (err.message && (err.message.includes("Lock") || err.message.includes("stole"))) {
-                    console.warn("Abaikan ralat kunci pada perubahan sesi.");
-                } else {
-                    setUser(null);
-                }
-            } finally {
-                setLoading(false);
+        initAuth();
+
+        const { data: { subscription } } = _supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                const { data: profile } = await _supabase
+                    .from('staff')
+                    .select('*')
+                    .eq('auth_id', session.user.id)
+                    .single();
+                if (isMounted) setUser(profile || null);
+            } else if (event === 'SIGNED_OUT') {
+                if (isMounted) setUser(null);
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+            subscription.unsubscribe();
+        };
     }, []);
 
-    const login = async (email, password) => {
+    const login = async (icOrEmail, password) => {
+        const formatEmail = icOrEmail.includes('@') ? icOrEmail : `${icOrEmail}@pasti.com`;
+        
         const { data, error } = await _supabase.auth.signInWithPassword({
-            email, 
+            email: formatEmail, 
             password
         });
-        if (error) return { success: false, message: error.message };
+        
+        if (error) return { success: false, message: "No IC atau Kata Laluan salah." };
+
+        const { data: profile, error: profileError } = await _supabase
+            .from('staff')
+            .select('*')
+            .eq('auth_id', data.user.id)
+            .single();
+
+        if (profileError || !profile) {
+            await _supabase.auth.signOut(); 
+            return { success: false, message: "Akaun sah, tetapi profil belum diisi dalam jadual staff. Sila pastikan UUID telah dimasukkan." };
+        }
+
         return { success: true };
     };
 
     const logout = async () => {
+        setLoading(true);
+        setUser(null);
         localStorage.clear();
         sessionStorage.clear();
-        setUser(null);
-        _supabase.auth.signOut().catch(e => console.log("Abaikan ralat log keluar", e));
+        await _supabase.auth.signOut();
+        window.location.reload(); 
     };
 
     const updateUser = async (data) => {
@@ -177,9 +184,26 @@ const AuthProvider = ({ children }) => {
         }
     };
 
+    if (loading) {
+        return (
+            <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#065f46] text-white p-4 text-center">
+                <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full mb-4"></div>
+                <h2 className="text-xl font-bold">Memuatkan Sistem...</h2>
+                <p className="text-sm text-emerald-200 mt-2 max-w-sm">
+                    Jika anda baru menyegarkan (refresh) halaman, sistem sedang memulihkan kunci keselamatan. Ini mungkin mengambil masa 5 saat.
+                </p>
+                <button 
+                    onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }}
+                    className="mt-8 px-4 py-2 bg-emerald-800 rounded-lg text-xs border border-emerald-600 hover:bg-emerald-900 transition-colors shadow-md">
+                    Sangkut Lebih 10 Saat? Klik Sini Untuk Cuci Memori
+                </button>
+            </div>
+        );
+    }
+
     return (
         <AuthContext.Provider value={{ user, login, logout, updateUser }}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };
