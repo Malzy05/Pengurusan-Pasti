@@ -106,13 +106,16 @@ const AuthProvider = ({ children }) => {
                     setUser(profile);
                 }
             } catch (err) {
-                console.error("Mencuci memori yang tersangkut...", err);
-                // Cuci semua jenis memori
-                localStorage.clear();
-                sessionStorage.clear();
-                setUser(null);
+                // SEMAKAN BAHARU: Jika ralat berpunca dari buka banyak tab, ABAIKAN.
+                if (err.message && (err.message.includes("Lock") || err.message.includes("stole"))) {
+                    console.warn("Abaikan: Tab lain sedang menguruskan sesi log masuk.");
+                } else {
+                    console.error("Mencuci memori yang rosak...", err);
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    setUser(null);
+                }
             } finally {
-                // Wajib jalankan ini untuk mengelakkan skrin putih!
                 setLoading(false);
             }
         };
@@ -133,8 +136,12 @@ const AuthProvider = ({ children }) => {
                     setUser(null);
                 }
             } catch (err) {
-                console.error("Ralat onAuthStateChange:", err);
-                setUser(null);
+                // SEMAKAN BAHARU: Abaikan ralat jika ia isu kunci tab
+                if (err.message && (err.message.includes("Lock") || err.message.includes("stole"))) {
+                    console.warn("Abaikan ralat kunci pada perubahan sesi.");
+                } else {
+                    setUser(null);
+                }
             } finally {
                 setLoading(false);
             }
@@ -153,11 +160,9 @@ const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        // Cuci memori terlebih dahulu dengan pantas
         localStorage.clear();
         sessionStorage.clear();
         setUser(null);
-        // Biarkan Supabase buat kerja log keluarnya di belakang tabir tanpa kita tunggu
         _supabase.auth.signOut().catch(e => console.log("Abaikan ralat log keluar", e));
     };
 
