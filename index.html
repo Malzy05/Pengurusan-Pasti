@@ -148,7 +148,7 @@ const AuthProvider = ({ children }) => {
             password
         });
         
-        if (error) return { success: false, message: "No IC atau Kata Laluan salah." };
+        if (error) return { success: false, message: "Gmail atau Kata Laluan salah." };
 
         const { data: profile, error: profileError } = await _supabase
             .from('staff')
@@ -334,8 +334,6 @@ const ProfilePage = ({ user }) => {
     });
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
-    const [showConfirm, setShowConfirm] = useState(false);
-    const [pendingChanges, setPendingChanges] = useState(null);
 
     useEffect(() => {
         setForm({
@@ -363,6 +361,7 @@ const ProfilePage = ({ user }) => {
         };
         if (!isAdmin) changes.kelas = form.kelas;
 
+        // Cuma semak jika No IC baru bertindih dengan orang lain
         if (form.ic !== user.ic) {
             const { data: duplicate } = await _supabase
                 .from('staff')
@@ -372,34 +371,16 @@ const ProfilePage = ({ user }) => {
                 .maybeSingle();
 
             if (duplicate) return setError('No IC ini telah digunakan oleh pengguna lain');
-            
-            setPendingChanges(changes);
-            setShowConfirm(true);
-        } else {
-            const res = await updateUser(changes);
-            if (res.success) {
-                setSuccess('Profil berjaya dikemas kini!');
-                setError('');
-                setTimeout(() => setSuccess(''), 3000);
-            } else {
-                setError('Ralat: ' + res.message);
-            }
         }
-    };
-
-    const confirmUpdate = async () => {
-        if (pendingChanges) {
-            const res = await updateUser(pendingChanges);
-            if (res.success) {
-                setSuccess('Profil berjaya dikemas kini! No IC baru akan digunakan untuk log masuk seterusnya.');
-                setError('');
-                setShowConfirm(false);
-                setPendingChanges(null);
-                setTimeout(() => setSuccess(''), 5000);
-            } else {
-                setError('Ralat: ' + res.message);
-                setShowConfirm(false);
-            }
+        
+        // Simpan terus tanpa modal pengesahan
+        const res = await updateUser(changes);
+        if (res.success) {
+            setSuccess('Profil berjaya dikemas kini!');
+            setError('');
+            setTimeout(() => setSuccess(''), 3000);
+        } else {
+            setError('Ralat: ' + res.message);
         }
     };
 
@@ -429,25 +410,6 @@ const ProfilePage = ({ user }) => {
                 </div>
                 <button onClick={handleSave} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors">Simpan Perubahan</button>
             </div>
-            {showConfirm && (
-                <Modal title="Pengesahan Perubahan No IC" onClose={() => { setShowConfirm(false); setPendingChanges(null); }}>
-                    <div className="space-y-4">
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                            <p className="text-amber-800 text-sm font-medium">⚠️ Amaran:</p>
-                            <p className="text-amber-700 text-sm mt-1">Anda akan menukar No IC. No IC baru akan digunakan untuk log masuk pada masa hadapan.</p>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                            <div className="flex justify-between text-sm"><span className="text-gray-500">No IC Lama:</span><span className="font-medium">{user.ic}</span></div>
-                            <div className="flex justify-between text-sm"><span className="text-gray-500">No IC Baru:</span><span className="font-medium text-emerald-600">{form.ic}</span></div>
-                        </div>
-                        <p className="text-sm text-gray-600">Adakah anda pasti ingin meneruskan?</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => { setShowConfirm(false); setPendingChanges(null); }} className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Batal</button>
-                            <button onClick={confirmUpdate} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Ya, Teruskan</button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
         </div>
     );
 };
