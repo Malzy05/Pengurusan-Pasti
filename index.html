@@ -44,7 +44,7 @@
             .print-table th, .print-table td { border: 1px solid #ddd; padding: 8px; }
         }
     </style>
-    
+
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#065f46">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3076/3076014.png">
@@ -61,7 +61,6 @@
         });
       }
     </script>
-</head>
 </head>
 <body class="bg-gray-50">
 <div id="root"></div>
@@ -88,67 +87,86 @@ const AuthContext = React.createContext();
 
 const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    React.useEffect(() => {
-        // Semak jika ada sesi yang disimpan
-        const savedUser = localStorage.getItem('pasti_currentUser');
-        if (savedUser) {
-            setUser(JSON.parse(savedUser));
-        }
+    useEffect(() => {
+        // 1. Semak sesi semasa apabila aplikasi bermula
+        // 1. Semak sesi semasa apabila aplikasi bermula (DENGAN AUTO-CUCI)
+        const checkSession = async () => {
+            try {
+                const { data: { session }, error } = await _supabase.auth.getSession();
+                
+                // Jika Supabase kesan ralat memori (seperti Lock error tadi), ia akan terus pergi ke 'catch'
+                if (error) throw error; 
+
+                if (session) {
+                    const { data: profile, error: profileError } = await _supabase
+                        .from('staff')
+                        .select('*')
+                        .eq('auth_id', session.user.id)
+                        .single();
+                    
+                    if (profileError) throw profileError;
+                    setUser(profile);
+                }
+            } catch (err) {
+                console.error("Sistem mengesan ralat memori lama. Sedang mencuci...", err);
+                // SISTEM AUTO-CUCI: Buang semua memori lama & log keluar supaya skrin tidak putih
+                localStorage.clear();
+                await _supabase.auth.signOut();
+                setUser(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+        checkSession();
+
+        // 2. Dengar perubahan status auth (login/logout)
+        const { data: { subscription } } = _supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session) {
+                const { data: profile } = await _supabase
+                    .from('staff')
+                    .select('*')
+                    .eq('auth_id', session.user.id)
+                    .single();
+                setUser(profile);
+            } else {
+                setUser(null);
+            }
+            setLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    const login = async (ic, password) => {
-        try {
-            const { data, error } = await _supabase
-                .from('staff')
-                .select('*')
-                .eq('ic', ic)
-                .eq('password', password)
-                .single();
-
-            if (error || !data) {
-                return { success: false, message: 'No IC atau Kata Laluan salah!' };
-            }
-
-            setUser(data);
-            localStorage.setItem('pasti_currentUser', JSON.stringify(data));
-            return { success: true, role: data.role };
-
-        } catch (error) {
-            console.error("Ralat Log Masuk:", error);
-            return { success: false, message: 'Ralat pelayan. Sila cuba sebentar lagi.' };
-        }
+    const login = async (email, password) => {
+        const { data, error } = await _supabase.auth.signInWithPassword({
+            email, 
+            password
+        });
+        if (error) return { success: false, message: error.message };
+        return { success: true };
     };
 
-    const logout = () => {
+    const logout = async () => {
+        await _supabase.auth.signOut();
         setUser(null);
-        localStorage.removeItem('pasti_currentUser');
     };
 
     const updateUser = async (data) => {
         try {
-            const { error } = await _supabase
-                .from('staff')
-                .update(data)
-                .eq('id', user.id);
-
+            const { error } = await _supabase.from('staff').update(data).eq('id', user.id);
             if (error) throw error;
-
-            const updated = { ...user, ...data };
-            setUser(updated);
-            localStorage.setItem('pasti_currentUser', JSON.stringify(updated));
-            
+            setUser({ ...user, ...data });
             return { success: true }; 
-            
         } catch (error) {
-            console.error("Ralat kemas kini profil:", error.message);
             return { success: false, message: error.message };
         }
     };
 
     return (
         <AuthContext.Provider value={{ user, login, logout, updateUser }}>
-            {children}
+            {!loading && children}
         </AuthContext.Provider>
     );
 };
@@ -171,7 +189,7 @@ const Login = () => {
                     <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-800">Pengurusan Pasti Al-Iqbal 2</h1>
+                    <h1 className="text-2xl font-bold text-gray-800">Sistem Pengurusan Pasti Al-Iqbal 2</h1>
                     <p className="text-gray-500 mt-1">Masukkan kelayakan anda untuk log masuk</p>
                 </div>
                 {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
@@ -275,10 +293,7 @@ const ProfilePage = ({ user }) => {
         alamat: user.alamat || '',
         tarikhLahir: user.tarikhLahir || '',
         tarikhMula: user.tarikhMula || '',
-        kelas: user.kelas || '',
-        password: '',
-        passwordBaru: '',
-        passwordSahkan: ''
+        kelas: user.kelas || ''
     });
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
@@ -293,17 +308,13 @@ const ProfilePage = ({ user }) => {
             alamat: user.alamat || '',
             tarikhLahir: user.tarikhLahir || '',
             tarikhMula: user.tarikhMula || '',
-            kelas: user.kelas || '',
-            password: '',
-            passwordBaru: '',
-            passwordSahkan: ''
+            kelas: user.kelas || ''
         });
     }, [user.id, user.ic]);
 
     const handleSave = async () => {
         if (!form.nama) return setError('Nama tidak boleh kosong');
         if (!form.ic) return setError('No IC tidak boleh kosong');
-        if (form.passwordBaru && form.passwordBaru !== form.passwordSahkan) return setError('Kata laluan baru tidak sepadan');
         
         const changes = { 
             nama: form.nama, 
@@ -314,7 +325,6 @@ const ProfilePage = ({ user }) => {
             tarikhMula: form.tarikhMula 
         };
         if (!isAdmin) changes.kelas = form.kelas;
-        if (form.passwordBaru) changes.password = form.passwordBaru;
 
         if (form.ic !== user.ic) {
             const { data: duplicate } = await _supabase
@@ -333,7 +343,6 @@ const ProfilePage = ({ user }) => {
             if (res.success) {
                 setSuccess('Profil berjaya dikemas kini!');
                 setError('');
-                setForm({...form, password: '', passwordBaru: '', passwordSahkan: ''});
                 setTimeout(() => setSuccess(''), 3000);
             } else {
                 setError('Ralat: ' + res.message);
@@ -347,7 +356,6 @@ const ProfilePage = ({ user }) => {
             if (res.success) {
                 setSuccess('Profil berjaya dikemas kini! No IC baru akan digunakan untuk log masuk seterusnya.');
                 setError('');
-                setForm({...form, password: '', passwordBaru: '', passwordSahkan: ''});
                 setShowConfirm(false);
                 setPendingChanges(null);
                 setTimeout(() => setSuccess(''), 5000);
@@ -381,15 +389,6 @@ const ProfilePage = ({ user }) => {
                     <Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} />
                     <Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} />
                     {!isAdmin && <Field label="Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} />}
-                </div>
-                <div className="mt-6 pt-6 border-t">
-                    <h4 className="font-semibold text-gray-800 mb-4">Tukar Kata Laluan</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Field label="Kata Laluan Semasa" type="password" value={form.password} onChange={v => setForm({...form, password: v})} />
-                        <Field label="Kata Laluan Baru" type="password" value={form.passwordBaru} onChange={v => setForm({...form, passwordBaru: v})} />
-                        <div className="md:col-span-2"><Field label="Sahkan Kata Laluan Baru" type="password" value={form.passwordSahkan} onChange={v => setForm({...form, passwordSahkan: v})} /></div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">* Kosongkan jika tidak mahu tukar kata laluan</p>
                 </div>
                 <button onClick={handleSave} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors">Simpan Perubahan</button>
             </div>
@@ -731,29 +730,20 @@ const StaffManagement = ({ user }) => {
     const [staffs, setStaffs] = useState([]); 
     const [showForm, setShowForm] = useState(false);
     const [editId, setEditId] = useState(null);
-    const [form, setForm] = useState({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', password: '' });
+    const [form, setForm] = useState({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', auth_id: '' });
+    
     const fetchStaff = async () => {
-        const { data, error } = await _supabase
-            .from('staff')
-            .select('*')
-            .eq('role', 'staff'); 
-
-        if (error) {
-            console.error("Ralat ambil data:", error.message);
-        } else {
-            setStaffs(data || []); 
-        }
+        const { data, error } = await _supabase.from('staff').select('*').eq('role', 'staff'); 
+        if (!error) setStaffs(data || []); 
     };
 
-    useEffect(() => {
-        fetchStaff();
-    }, []);
+    useEffect(() => { fetchStaff(); }, []);
 
-    const addStaff = () => { setEditId(null); setForm({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', password: '' }); setShowForm(true); };
+    const addStaff = () => { setEditId(null); setForm({ nama: '', kelas: '', ic: '', noHp: '', alamat: '', tarikhLahir: '', tarikhMula: '', auth_id: '' }); setShowForm(true); };
     const editStaff = (s) => { setEditId(s.id); setForm(s); setShowForm(true); };
 
     const saveStaff = async () => {
-        if (!form.nama || !form.ic || !form.kelas) return alert('Sila lengkapkan maklumat');
+        if (!form.nama || !form.ic || !form.kelas) return alert('Sila lengkapkan maklumat wajib (Nama, Kelas, IC)');
         
         if (editId) {
             const { error } = await _supabase.from('staff').update(form).eq('id', editId);
@@ -762,13 +752,12 @@ const StaffManagement = ({ user }) => {
             const { error } = await _supabase.from('staff').insert([form]);
             if (error) alert('Ralat semasa menambah: ' + error.message);
         }
-        
         setShowForm(false);
         fetchStaff(); 
     };
 
     const deleteStaff = async (id) => { 
-        if (confirm('Adakah anda pasti?')) { 
+        if (confirm('Adakah anda pasti mahu memadam staf ini?')) { 
             const { error } = await _supabase.from('staff').delete().eq('id', id);
             if (error) alert('Ralat padam: ' + error.message);
             else fetchStaff(); 
@@ -782,7 +771,7 @@ const StaffManagement = ({ user }) => {
                 {staffs.map(s => (<tr key={s.id} className="hover:bg-gray-50"><td className="px-4 py-3 font-medium">{s.nama}</td><td className="px-4 py-3">{s.kelas}</td><td className="px-4 py-3">{s.ic}</td><td className="px-4 py-3">{s.noHp}</td><td className="px-4 py-3">{s.tarikhMula}</td><td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => editStaff(s)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Edit</button><button onClick={() => deleteStaff(s.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Padam</button></div></td></tr>))}
             </tbody></table></div>
             {showForm && <Modal title={editId ? 'Edit Maklumat Staff' : 'Tambah Staff Baru'} onClose={() => setShowForm(false)}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Nama Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="No IC" value={form.ic} onChange={v => setForm({...form, ic: v})} /><Field label="No Telefon" value={form.noHp} onChange={v => setForm({...form, noHp: v})} /><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} /><Field label="Kata Laluan" type="password" value={form.password} onChange={v => setForm({...form, password: v})} /></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Nama Penuh" value={form.nama} onChange={v => setForm({...form, nama: v})} /><Field label="Nama Kelas" value={form.kelas} onChange={v => setForm({...form, kelas: v})} /><Field label="No IC" value={form.ic} onChange={v => setForm({...form, ic: v})} /><Field label="No Telefon" value={form.noHp} onChange={v => setForm({...form, noHp: v})} /><Field label="Alamat" value={form.alamat} onChange={v => setForm({...form, alamat: v})} /><Field label="Tarikh Lahir" type="date" value={form.tarikhLahir} onChange={v => setForm({...form, tarikhLahir: v})} /><Field label="Tarikh Mula Bekerja" type="date" value={form.tarikhMula} onChange={v => setForm({...form, tarikhMula: v})} /><Field label="Auth ID (Salin UUID dari Supabase)" value={form.auth_id || ''} onChange={v => setForm({...form, auth_id: v})} /></div>
                 <button onClick={saveStaff} className="mt-4 w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700">Simpan</button>
             </Modal>}
         </div>
@@ -2522,7 +2511,7 @@ const LoginPage = () => {
                     <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <span className="text-3xl">🏢</span>
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-800">Pasti Al-Iqbal 2</h1>
+                    <h1 className="text-2xl font-bold text-gray-800">Sistem Pasti Al-Iqbal 2</h1>
                     <p className="text-gray-500 mt-1">Sila log masuk untuk meneruskan</p>
                 </div>
 
@@ -2530,7 +2519,7 @@ const LoginPage = () => {
 
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">No. Kad Pengenalan</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Gmail</label>
                         <input 
                             type="text" 
                             value={ic} 
@@ -2679,7 +2668,7 @@ const App = () => {
                 <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10 shadow-sm">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-[#065f46] rounded flex items-center justify-center text-white font-bold text-sm">🏢</div>
-                        <span className="font-bold text-gray-800 tracking-wide">Pasti Al-Iqbal 2</span>
+                        <span className="font-bold text-gray-800 tracking-wide">Sistem Pasti Al-Iqbal 2</span>
                     </div>
                     <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 hover:text-[#065f46] focus:outline-none p-1 rounded-md hover:bg-gray-100 transition-colors">
                         <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
