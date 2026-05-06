@@ -2502,6 +2502,7 @@ const TimetablePage = ({ user }) => {
     const [editId, setEditId] = useState(null);
     const [filterKelas, setFilterKelas] = useState(isAdmin ? '' : user.kelas);
     const [senaraiKelas, setSenaraiKelas] = useState([]);
+    const [jadualList, setJadualList] = useState([{ masa_mula: '', masa_tamat: '', subjek: '', guruId: '' }]);
 
     const [form, setForm] = useState({
         kelas: isAdmin ? '' : user.kelas,
@@ -2513,6 +2514,19 @@ const TimetablePage = ({ user }) => {
     });
 
     const hariList = ['Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat'];
+
+    const handleJadualChange = (index, field, value) => {
+        const newList = [...jadualList];
+        newList[index][field] = value;
+        setJadualList(newList);
+    };
+    const addJadualRow = () => {
+        setJadualList([...jadualList, { masa_mula: '', masa_tamat: '', subjek: '', guruId: '' }]);
+    };
+    const removeJadualRow = (index) => {
+        const newList = jadualList.filter((_, i) => i !== index);
+        setJadualList(newList);
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -2545,6 +2559,7 @@ const TimetablePage = ({ user }) => {
             subjek: '',
             guruId: ''
         });
+        setJadualList([{ masa_mula: '', masa_tamat: '', subjek: '', guruId: '' }]);
         setShowForm(true);
     };
 
@@ -2555,15 +2570,37 @@ const TimetablePage = ({ user }) => {
     };
 
     const saveTimetable = async () => {
-        if (!form.kelas || !form.hari || !form.masa_mula || !form.masa_tamat || !form.subjek) {
-            return alert('Sila lengkapkan maklumat wajib (Kelas, Hari, Masa, Subjek)');
+        if (!form.kelas || !form.hari) {
+            return alert('Sila lengkapkan maklumat wajib (Kelas, Hari)');
         }
 
         if (editId) {
-            const { error } = await _supabase.from('timetables').update(form).eq('id', editId);
+            if (!form.masa_mula || !form.masa_tamat || !form.subjek) {
+                return alert('Sila lengkapkan maklumat wajib (Masa, Subjek)');
+            }
+            const { error } = await _supabase.from('timetables').update({
+                kelas: form.kelas,
+                hari: form.hari,
+                masa_mula: form.masa_mula,
+                masa_tamat: form.masa_tamat,
+                subjek: form.subjek,
+                guruId: form.guruId
+            }).eq('id', editId);
             if (error) alert('Ralat kemas kini jadual: ' + error.message);
         } else {
-            const { error } = await _supabase.from('timetables').insert([form]);
+            const validJadual = jadualList.filter(j => j.masa_mula && j.masa_tamat && j.subjek);
+            if (validJadual.length === 0) {
+                return alert('Sila lengkapkan sekurang-kurangnya satu jadual (Masa Mula, Masa Tamat, Subjek)');
+            }
+            const toInsert = validJadual.map(j => ({
+                kelas: form.kelas,
+                hari: form.hari,
+                masa_mula: j.masa_mula,
+                masa_tamat: j.masa_tamat,
+                subjek: j.subjek,
+                guruId: j.guruId || null
+            }));
+            const { error } = await _supabase.from('timetables').insert(toInsert);
             if (error) alert('Ralat tambah jadual: ' + error.message);
         }
         setShowForm(false);
@@ -2657,7 +2694,7 @@ const TimetablePage = ({ user }) => {
             )}
 
             {showForm && (
-                <Modal title={editId ? "Edit Jadual" : "Tambah Jadual"} onClose={() => setShowForm(false)}>
+                <Modal title={editId ? "Edit Jadual" : "Tambah Jadual Pukal"} onClose={() => setShowForm(false)}>
                     <div className="grid grid-cols-1 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
@@ -2672,18 +2709,61 @@ const TimetablePage = ({ user }) => {
                                 {hariList.map(h => <option key={h} value={h}>{h}</option>)}
                             </select>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <Field label="Masa Mula" type="time" value={form.masa_mula} onChange={v => setForm({...form, masa_mula: v})} />
-                            <Field label="Masa Tamat" type="time" value={form.masa_tamat} onChange={v => setForm({...form, masa_tamat: v})} />
-                        </div>
-                        <Field label="Mata Pelajaran" value={form.subjek} onChange={v => setForm({...form, subjek: v})} />
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Guru Mengajar (Pilihan)</label>
-                            <select value={form.guruId || ''} onChange={e => setForm({...form, guruId: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
-                                <option value="">Pilih Guru</option>
-                                {staffs.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
-                            </select>
-                        </div>
+
+                        {editId ? (
+                            <>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Field label="Masa Mula" type="time" value={form.masa_mula || ''} onChange={v => setForm({...form, masa_mula: v})} />
+                                    <Field label="Masa Tamat" type="time" value={form.masa_tamat || ''} onChange={v => setForm({...form, masa_tamat: v})} />
+                                </div>
+                                <Field label="Mata Pelajaran" value={form.subjek || ''} onChange={v => setForm({...form, subjek: v})} />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Guru Mengajar (Pilihan)</label>
+                                    <select value={form.guruId || ''} onChange={e => setForm({...form, guruId: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                                        <option value="">Pilih Guru</option>
+                                        {staffs.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
+                                    </select>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="pt-4 border-t border-gray-200 mt-2">
+                                <p className="text-sm font-bold text-gray-800 mb-3">Senarai Masa & Subjek</p>
+                                {jadualList.map((item, index) => (
+                                    <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-3 relative">
+                                        {jadualList.length > 1 && (
+                                            <button onClick={() => removeJadualRow(index)} className="absolute top-2 right-2 text-red-500 hover:bg-red-50 rounded-lg p-1" title="Padam Baris">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-3 mb-3 pr-8">
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase">Masa Mula</label>
+                                                <input type="time" value={item.masa_mula} onChange={e => handleJadualChange(index, 'masa_mula', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase">Masa Tamat</label>
+                                                <input type="time" value={item.masa_tamat} onChange={e => handleJadualChange(index, 'masa_tamat', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                                            </div>
+                                        </div>
+                                        <div className="mb-3">
+                                            <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase">Mata Pelajaran</label>
+                                            <input type="text" value={item.subjek} onChange={e => handleJadualChange(index, 'subjek', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Contoh: Matematik" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-500 mb-1 uppercase">Guru Mengajar (Pilihan)</label>
+                                            <select value={item.guruId || ''} onChange={e => handleJadualChange(index, 'guruId', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                                <option value="">Pilih Guru</option>
+                                                {staffs.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button onClick={addJadualRow} className="mt-2 text-sm text-blue-600 font-bold hover:text-blue-800 flex items-center gap-1">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                    Tambah Jadual Lain
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <button onClick={saveTimetable} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg font-bold hover:bg-emerald-700">Simpan</button>
                 </Modal>
