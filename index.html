@@ -2492,6 +2492,206 @@ const PerformanceByYearPage = ({ user }) => {
     );
 };
 
+// ==================== TIMETABLE PAGE ====================
+const TimetablePage = ({ user }) => {
+    const isAdmin = user.role === 'admin';
+    const [timetables, setTimetables] = useState([]);
+    const [staffs, setStaffs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showForm, setShowForm] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [filterKelas, setFilterKelas] = useState(isAdmin ? '' : user.kelas);
+    const [senaraiKelas, setSenaraiKelas] = useState([]);
+
+    const [form, setForm] = useState({
+        kelas: isAdmin ? '' : user.kelas,
+        hari: 'Isnin',
+        masa_mula: '',
+        masa_tamat: '',
+        subjek: '',
+        guruId: ''
+    });
+
+    const hariList = ['Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat'];
+
+    const fetchData = async () => {
+        setLoading(true);
+        const { data: ttData } = await _supabase.from('timetables').select('*');
+        if (ttData) setTimetables(ttData);
+
+        const { data: staffData } = await _supabase.from('staff').select('id, nama, kelas');
+        if (staffData) {
+            setStaffs(staffData);
+            const uniqueKelas = [...new Set(staffData.map(s => s.kelas).filter(Boolean))];
+            setSenaraiKelas(uniqueKelas);
+            if (!filterKelas && uniqueKelas.length > 0 && isAdmin) {
+                setFilterKelas(uniqueKelas[0]);
+            }
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const addTimetable = () => {
+        setEditId(null);
+        setForm({
+            kelas: filterKelas || (isAdmin ? '' : user.kelas),
+            hari: 'Isnin',
+            masa_mula: '',
+            masa_tamat: '',
+            subjek: '',
+            guruId: ''
+        });
+        setShowForm(true);
+    };
+
+    const editTimetable = (tt) => {
+        setEditId(tt.id);
+        setForm(tt);
+        setShowForm(true);
+    };
+
+    const saveTimetable = async () => {
+        if (!form.kelas || !form.hari || !form.masa_mula || !form.masa_tamat || !form.subjek) {
+            return alert('Sila lengkapkan maklumat wajib (Kelas, Hari, Masa, Subjek)');
+        }
+
+        if (editId) {
+            const { error } = await _supabase.from('timetables').update(form).eq('id', editId);
+            if (error) alert('Ralat kemas kini jadual: ' + error.message);
+        } else {
+            const { error } = await _supabase.from('timetables').insert([form]);
+            if (error) alert('Ralat tambah jadual: ' + error.message);
+        }
+        setShowForm(false);
+        fetchData();
+    };
+
+    const deleteTimetable = async (id) => {
+        if (confirm('Padam jadual ini?')) {
+            const { error } = await _supabase.from('timetables').delete().eq('id', id);
+            if (error) alert('Ralat padam jadual: ' + error.message);
+            else fetchData();
+        }
+    };
+
+    const filteredTimetables = timetables.filter(t => t.kelas === filterKelas);
+
+    // Group by day and sort by start time
+    const scheduleByDay = {};
+    hariList.forEach(h => {
+        scheduleByDay[h] = filteredTimetables
+            .filter(t => t.hari === h)
+            .sort((a, b) => a.masa_mula.localeCompare(b.masa_mula));
+    });
+
+    return (
+        <div className="fade-in">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+                <h2 className="text-2xl font-bold text-gray-800">Jadual Waktu Kelas</h2>
+                {isAdmin && <button onClick={addTimetable} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">+ Tambah Jadual</button>}
+            </div>
+
+            <div className="flex gap-4 mb-6 flex-wrap no-print">
+                <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="px-3 py-2 border rounded-lg text-sm" disabled={!isAdmin}>
+                    {isAdmin && <option value="">Pilih Kelas</option>}
+                    {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+                {filterKelas && <button onClick={() => window.print()} className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm">🖨 Cetak Jadual</button>}
+            </div>
+
+            {loading ? (
+                <div className="text-center py-8 text-gray-500">Memuatkan jadual waktu...</div>
+            ) : !filterKelas ? (
+                <div className="bg-white rounded-xl p-12 text-center border border-dashed border-gray-300">
+                    <p className="text-gray-500">Sila pilih kelas untuk melihat jadual waktu.</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 print-card">
+                    <div className="text-center mb-6 hidden print:block">
+                        <h1 className="text-2xl font-bold text-gray-800 uppercase">Jadual Waktu Kelas</h1>
+                        <p className="text-gray-500 text-lg">Kelas: {filterKelas}</p>
+                    </div>
+
+                    <div className="grid gap-6">
+                        {hariList.map(hari => (
+                            <div key={hari} className="border rounded-lg overflow-hidden elak-terpotong">
+                                <div className="bg-emerald-50 px-4 py-2 border-b">
+                                    <h3 className="font-bold text-emerald-800">{hari}</h3>
+                                </div>
+                                {scheduleByDay[hari].length > 0 ? (
+                                    <div className="divide-y divide-gray-100">
+                                        {scheduleByDay[hari].map(tt => {
+                                            const guru = staffs.find(s => s.id === tt.guruId);
+                                            return (
+                                                <div key={tt.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
+                                                    <div className="flex gap-6 items-center flex-1">
+                                                        <div className="w-32 text-sm font-bold text-blue-600">
+                                                            {tt.masa_mula} - {tt.masa_tamat}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-gray-800">{tt.subjek}</p>
+                                                            <p className="text-xs text-gray-500">{guru?.nama || 'Guru Tidak Ditetapkan'}</p>
+                                                        </div>
+                                                    </div>
+                                                    {isAdmin && (
+                                                        <div className="flex gap-2 no-print">
+                                                            <button onClick={() => editTimetable(tt)} className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">Edit</button>
+                                                            <button onClick={() => deleteTimetable(tt.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Padam</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="p-4 text-center text-sm text-gray-400 italic">Tiada jadual untuk hari ini.</div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {showForm && (
+                <Modal title={editId ? "Edit Jadual" : "Tambah Jadual"} onClose={() => setShowForm(false)}>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
+                            <select value={form.kelas} onChange={e => setForm({...form, kelas: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                                <option value="">Pilih Kelas</option>
+                                {senaraiKelas.map(k => <option key={k} value={k}>{k}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Hari</label>
+                            <select value={form.hari} onChange={e => setForm({...form, hari: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                                {hariList.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Field label="Masa Mula" type="time" value={form.masa_mula} onChange={v => setForm({...form, masa_mula: v})} />
+                            <Field label="Masa Tamat" type="time" value={form.masa_tamat} onChange={v => setForm({...form, masa_tamat: v})} />
+                        </div>
+                        <Field label="Mata Pelajaran" value={form.subjek} onChange={v => setForm({...form, subjek: v})} />
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Guru Mengajar (Pilihan)</label>
+                            <select value={form.guruId || ''} onChange={e => setForm({...form, guruId: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                                <option value="">Pilih Guru</option>
+                                {staffs.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <button onClick={saveTimetable} className="mt-6 w-full bg-emerald-600 text-white py-3 rounded-lg font-bold hover:bg-emerald-700">Simpan</button>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
 // ==================== LOGIN PAGE ====================
 const LoginPage = () => {
     const { login } = React.useContext(AuthContext);
@@ -2576,6 +2776,7 @@ const App = () => {
         { id: 'logbook', label: 'Logbook Harian', icon: '📖', show: !isAdmin },
         { id: 'logbook_monitor', label: 'Logbook Guru', icon: '📖', show: isAdmin },
         { id: 'kalendar', label: 'Kalendar', icon: '📅', show: true },
+        { id: 'jadual_waktu', label: 'Jadual Waktu', icon: '⏰', show: true },
         { id: 'murid', label: 'Pengurusan Murid', icon: '🎓', show: true },
         { id: 'info_murid', label: 'Maklumat Murid', icon: 'ℹ️', show: true },
         { id: 'att_murid', label: 'Kehadiran Murid', icon: '📝', show: true },
@@ -2593,6 +2794,7 @@ const App = () => {
             case 'att_staff': return <StaffAttendance />;
             case 'gred': return <GradeManagement />;
             case 'kalendar': return <CalendarPage user={user} />;
+            case 'jadual_waktu': return <TimetablePage user={user} />;
             case 'murid': return <StudentManagement user={user} />;
             case 'info_murid': return <StudentInfoPage user={user} />;
             case 'att_murid': return <StudentAttendance user={user} />;
